@@ -104,7 +104,7 @@ if __name__ == "__main__":
     parser.add_argument('--ou_sigma', default=0.2, type=float, help='noise sigma') 
     parser.add_argument('--ou_mu', default=0.0, type=float, help='noise mu') 
     parser.add_argument('--validate_episodes', default=20, type=int, help='how many episode to perform during validate experiment')
-    parser.add_argument('--max_episode_length', default=500, type=int, help='')
+    parser.add_argument('--max_episode_length', default=1000, type=int, help='')
     parser.add_argument('--validate_steps', default=2000, type=int, help='how many steps to perform a validate experiment')
     parser.add_argument('--output', default='output', type=str, help='')
     parser.add_argument('--debug', dest='debug', action='store_true')

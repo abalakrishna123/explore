@@ -9,6 +9,7 @@ from model import (Actor, Critic)
 from memory import SequentialMemory
 from random_process import OrnsteinUhlenbeckProcess
 from util import *
+from optimizer_env import *
 
 # from ipdb import set_trace as debug
 
@@ -72,7 +73,7 @@ class DDPG(object):
         next_q_values.volatile=False
 
         target_q_batch = to_tensor(reward_batch) + \
-            self.discount*to_tensor(terminal_batch.astype(np.float))*next_q_values
+            self.discount*to_tensor(1.0 - terminal_batch.astype(np.float))*next_q_values
 
         # Critic update
         self.critic.zero_grad()
@@ -131,6 +132,11 @@ class DDPG(object):
         if decay_epsilon:
             self.epsilon -= self.depsilon
         
+        self.a_t = action
+        return action
+
+    def SGD_action(self, theta, data):
+        action = SGD_linear_loss(theta, 0.001, data[np.random.randint(len(data))])
         self.a_t = action
         return action
 

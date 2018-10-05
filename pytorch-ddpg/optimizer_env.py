@@ -35,7 +35,7 @@ def get_stoch_linear_gradient(theta, data, batch_size):
 def SGD_linear_loss(theta, eta, data_i):
     X_i = data_i[:-1]
     y_i = data_i[-1]
-    return - eta * ( np.dot(X_i, theta) - y_i ) * X_i
+    return -eta * ( np.dot(X_i, theta) - y_i ) * X_i
 
 # Run SGD Optimization
 def optimize_linear_SGD(data, eta, loss_thresh, max_epochs):
@@ -77,7 +77,7 @@ class Buffer(object):
 # TODO: Add something about exploration policies, this should probably be in the DDPG part tbh since can just step using this
 # Can add in exploration policies once basic DDPG works
 
-# TODO: Currently operates off liner data with linear loss, will need to make this more general when optimizing random functions
+# TODO: Currently operates off linear data with linear loss, will need to make this more general when optimizing random functions
 class LearnedOptimizationEnv:
     def __init__(self, num_points, grad_batch_size, dim, loss_thresh, max_epochs, losses_hist_length, grads_hist_length):
         # Get data + initialize optimization parameters
@@ -87,7 +87,6 @@ class LearnedOptimizationEnv:
         self.loss_thresh = loss_thresh
         self.max_epochs = max_epochs
         self.grad_batch_size = grad_batch_size
-        self.epoch_count = 0
 
         # Initialize State
         self.losses_hist_length = losses_hist_length
@@ -102,7 +101,6 @@ class LearnedOptimizationEnv:
         Reset environment and get initial state
     '''
     def reset(self):
-        self.epoch_count = 0
         self.p_coor = 1
         self.theta = np.random.random(self.dim + 1)
         self.losses = Buffer(self.losses_hist_length, get_linear_loss(self.theta, self.data))
@@ -130,7 +128,7 @@ class LearnedOptimizationEnv:
         # --- Update theta based on action ---
         self.theta = self.theta + action
         # --- Determine whether the episode is done ---
-        done = True if (self.epoch_count > self.max_epochs or self.losses.get_list()[-1] < self.loss_thresh) else False
+        done = True if (self.losses.get_list()[-1] < self.loss_thresh) else False
         # --- Get new state ---
         # Update losses and gradients variables based on current loss and gradient
         self.losses.push(get_linear_loss(self.theta, self.data))
@@ -159,12 +157,6 @@ class LearnedOptimizationEnv:
     def get_data(self):
         return self.data
 
-    def update_epoch_count(self):
-        self.epoch_count += 1
-
-    def get_epoch_count(self):
-        return self.epoch_count
-
     def get_state_dim(self):
         return len(self.state)
 
@@ -189,12 +181,10 @@ if __name__ == "__main__":
         episode_done = done
 
         if i % len(data) == 0:
-            print("Epoch: " + str(env.get_epoch_count()) )
             print("Reward: " + str(reward) )
             print("Done: " + str(done) )
             # print("losses: ")
             # print(env.losses.get_list())
-            env.update_epoch_count()
 
         i += 1
         rewards.append(reward)

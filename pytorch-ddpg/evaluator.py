@@ -22,6 +22,8 @@ class Evaluator(object):
         reward_result = []
         loss_result = []
 
+        import pdb; pdb.set_trace()
+
         for episode in range(self.num_episodes):
 
             # reset at the start of episode
@@ -50,6 +52,8 @@ class Evaluator(object):
                 episode_loss += loss
                 episode_steps += 1
 
+            episode_reward = episode_reward/float(episode_steps)
+            episode_loss = episode_loss/float(episode_steps)
             if debug: prYellow('[Evaluate] #Episode{}: episode_reward:{}'.format(episode,episode_reward))
             reward_result.append(episode_reward)
             loss_result.append(episode_loss)
