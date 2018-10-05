@@ -127,7 +127,7 @@ class DDPG(object):
             self.actor(to_tensor(np.array([s_t])))
         ).squeeze(0)
         action += self.is_training*max(self.epsilon, 0)*self.random_process.sample()
-        action = np.clip(action, -1., 1.)
+        action = np.clip(action, -0.01, 0.01)
 
         if decay_epsilon:
             self.epsilon -= self.depsilon

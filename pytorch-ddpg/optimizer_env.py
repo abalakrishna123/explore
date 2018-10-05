@@ -138,7 +138,7 @@ class LearnedOptimizationEnv:
         next_state = np.array(self.losses.get_list())
         # Get reward, will be positive if average loss of first losses_hist_length - 1 values is more than new loss
         losses = self.losses.get_list()
-        reward = ( np.mean(losses[:-1]) - losses[-1])/np.mean(losses[:-1])
+        reward =  np.mean(losses[:-1]) - losses[-1]
         loss = losses[-1]
         # Set current state to the next state
         self.state = next_state
