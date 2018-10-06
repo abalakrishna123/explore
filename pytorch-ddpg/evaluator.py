@@ -22,8 +22,6 @@ class Evaluator(object):
         reward_result = []
         loss_result = []
 
-        import pdb; pdb.set_trace()
-
         for episode in range(self.num_episodes):
 
             # reset at the start of episode

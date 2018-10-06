@@ -11,6 +11,7 @@ from evaluator import Evaluator
 from ddpg import DDPG
 from util import *
 from scipy.io import savemat
+import matplotlib.pyplot as plt
 
 def train(num_iterations, agent, env,  evaluate, validate_steps, output, max_episode_length=None, debug=False):
 
@@ -35,7 +36,7 @@ def train(num_iterations, agent, env,  evaluate, validate_steps, output, max_epi
             # For now when exploring, follow what SGD would do:
             action = agent.SGD_action(env.get_theta(), env.get_data())
         else:
-            action = agent.select_action(observation)
+            action = agent.select_action(observation, env.get_theta(), env.get_data())
         
         # env response with next_observation, reward, terminate_info
         observation2, reward, done, loss = env.step(action)
@@ -107,7 +108,7 @@ def train(num_iterations, agent, env,  evaluate, validate_steps, output, max_epi
 
             agent.memory.append(
                 observation,
-                agent.select_action(observation),
+                agent.select_action(observation, env.get_theta(), env.get_data()),
                 0., False
             )
 

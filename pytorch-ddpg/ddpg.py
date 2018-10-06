@@ -73,7 +73,7 @@ class DDPG(object):
         next_q_values.volatile=False
 
         target_q_batch = to_tensor(reward_batch) + \
-            self.discount*to_tensor(1.0 - terminal_batch.astype(np.float))*next_q_values
+            self.discount*to_tensor(terminal_batch.astype(np.float))*next_q_values
 
         # Critic update
         self.critic.zero_grad()
@@ -122,12 +122,15 @@ class DDPG(object):
         self.a_t = action
         return action
 
-    def select_action(self, s_t, decay_epsilon=True):
+    def select_action(self, s_t, theta, data, decay_epsilon=True):
         action = to_numpy(
             self.actor(to_tensor(np.array([s_t])))
         ).squeeze(0)
-        action += self.is_training*max(self.epsilon, 0)*self.random_process.sample()
-        action = np.clip(action, -0.01., 0.01.)
+        # action += self.is_training*max(self.epsilon, 0)*self.random_process.sample()
+        # HACK: Make all exploring just following gradients
+        action += self.is_training*max(self.epsilon, 0)*SGD_linear_loss(theta, 0.001, data[np.random.randint(len(data))])
+        # action = np.clip(action, -0.001, 0.001)
+        action = np.clip(action, -0.01, 0.01)
 
         if decay_epsilon:
             self.epsilon -= self.depsilon

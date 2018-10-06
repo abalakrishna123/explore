@@ -10,6 +10,8 @@ from normalized_env import NormalizedEnv
 from evaluator import Evaluator
 from ddpg import DDPG
 from util import *
+from scipy.io import savemat
+import matplotlib.pyplot as plt
 
 def train(num_iterations, agent, env,  evaluate, validate_steps, output, max_episode_length=None, debug=False):
 
@@ -18,6 +20,7 @@ def train(num_iterations, agent, env,  evaluate, validate_steps, output, max_epi
     step = episode = episode_steps = 0
     episode_reward = 0.
     observation = None
+    episode_rewards = []
     while step < num_iterations:
         # reset if it is the start of episode
         if observation is None:
@@ -42,10 +45,10 @@ def train(num_iterations, agent, env,  evaluate, validate_steps, output, max_epi
             agent.update_policy()
         
         # [optional] evaluate
-        if evaluate is not None and validate_steps > 0 and step % validate_steps == 0:
-            policy = lambda x: agent.select_action(x, decay_epsilon=False)
-            validate_reward = evaluate(env, policy, debug=False, visualize=False)
-            if debug: prYellow('[Evaluate] Step_{:07d}: mean_reward:{}'.format(step, validate_reward))
+        # if evaluate is not None and validate_steps > 0 and step % validate_steps == 0:
+        #     policy = lambda x: agent.select_action(x, decay_epsilon=False)
+        #     validate_reward = evaluate(env, policy, debug=False, visualize=False)
+        #     if debug: prYellow('[Evaluate] Step_{:07d}: mean_reward:{}'.format(step, validate_reward))
 
         # [optional] save intermideate model
         if step % int(num_iterations/3) == 0:
@@ -58,6 +61,21 @@ def train(num_iterations, agent, env,  evaluate, validate_steps, output, max_epi
         observation = deepcopy(observation2)
 
         if done: # end of episode
+
+            episode_rewards.append( episode_reward/float(episode_steps)  )
+
+            if episode % 10 == 0:                 
+                x = np.arange(len(episode_rewards))
+                y = np.array(episode_rewards)
+                plt.xlabel('Episode')
+                plt.ylabel(' Average Reward')
+                plt.plot(x, y)
+                plt.savefig('{}/episode_reward'.format(output) +'.png')
+                savemat('{}/episode_reward'.format(output) +'.mat', {'reward':episode_rewards})
+                plt.clf()
+                plt.cla()
+                plt.close()
+
             if debug: prGreen('#{}: episode_reward:{} steps:{}'.format(episode,episode_reward,step))
 
             agent.memory.append(
