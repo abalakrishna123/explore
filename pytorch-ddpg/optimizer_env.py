@@ -94,8 +94,8 @@ class LearnedOptimizationEnv:
         self.theta = np.random.random(self.dim + 1)
         self.losses = Buffer(self.losses_hist_length, get_linear_loss(self.theta, self.data))
         self.gradients = Buffer(self.grads_hist_length, get_stoch_linear_gradient(self.theta, self.data, self.grad_batch_size))
-        # self.state = np.array(self.losses.get_list() + [grad_elem for grad in self.gradients.get_list() for grad_elem in grad])
-        self.state = np.array(self.losses.get_list())
+        self.state = np.array(self.losses.get_list() + [grad_elem for grad in self.gradients.get_list() for grad_elem in grad])
+        #self.state = np.array(self.losses.get_list())
 
     '''
         Reset environment and get initial state
@@ -105,8 +105,8 @@ class LearnedOptimizationEnv:
         self.theta = np.random.random(self.dim + 1)
         self.losses = Buffer(self.losses_hist_length, get_linear_loss(self.theta, self.data))
         self.gradients = Buffer(self.grads_hist_length, get_stoch_linear_gradient(self.theta, self.data, self.grad_batch_size))
-        # self.state = np.array(self.losses.get_list() + [grad_elem for grad in self.gradients.get_list() for grad_elem in grad])
-        self.state = np.array(self.losses.get_list())
+        self.state = np.array(self.losses.get_list() + [grad_elem for grad in self.gradients.get_list() for grad_elem in grad])
+        #self.state = np.array(self.losses.get_list())
         return self.state
     '''
         Step environment when an action is performed and return [next_state, reward, done]
@@ -134,8 +134,8 @@ class LearnedOptimizationEnv:
         self.losses.push(get_linear_loss(self.theta, self.data))
         self.gradients.push(get_stoch_linear_gradient(self.theta, self.data, self.grad_batch_size))
         # Get new state
-        # next_state = np.array(self.losses.get_list() + [grad_elem for grad in self.gradients.get_list() for grad_elem in grad])
-        next_state = np.array(self.losses.get_list())
+        next_state = np.array(self.losses.get_list() + [grad_elem for grad in self.gradients.get_list() for grad_elem in grad])
+        #next_state = np.array(self.losses.get_list())
         # Get reward, will be positive if average loss of first losses_hist_length - 1 values is more than new loss
         losses = self.losses.get_list()
         reward =  np.mean(losses[:-1]) - losses[-1]

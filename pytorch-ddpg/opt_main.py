@@ -162,6 +162,8 @@ if __name__ == "__main__":
     parser.add_argument('--resume', default='default', type=str, help='Resuming model path for testing')
     # parser.add_argument('--l2norm', default=0.01, type=float, help='l2 weight decay') # TODO
     # parser.add_argument('--cuda', dest='cuda', action='store_true') # TODO
+    parser.add_argument('--ngradients', default=100, help='number of gradients included in state', type=int)
+    parser.add_argument('--nlosses', default=100, help='number of losses included in state', type=int)
 
     args = parser.parse_args()
     args.output = get_output_folder(args.output, args.env)
@@ -169,7 +171,7 @@ if __name__ == "__main__":
         args.resume = 'output/{}-run0'.format(args.env)
 
     # env = NormalizedEnv(gym.make(args.env))
-    env = LearnedOptimizationEnv(1000, 50, 1, 0.005, 30, 100, 100)
+    env = LearnedOptimizationEnv(1000, 50, 1, 0.005, 30, args.nlosses, args.ngradients)
 
     if args.seed > 0:
         np.random.seed(args.seed)
