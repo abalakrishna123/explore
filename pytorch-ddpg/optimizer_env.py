@@ -167,7 +167,7 @@ class LearnedOptimizationEnv:
 # SGD makes no use of the state at all, but each action is a perturbation
 # of the current parameters
 if __name__ == "__main__":
-    env = LearnedOptimizationEnv(1000, 50, 1, 0.001, 30, 100, 100)
+    env = LearnedOptimizationEnv(1000, 50, 1, 0.005, 30, 100, 100)
     state = env.reset()
     data = env.get_data()
     episode_done = False
@@ -176,13 +176,14 @@ if __name__ == "__main__":
     rewards = []
     losses = []
     while episode_done is False:
-        action = SGD_linear_loss(env.get_theta(), 0.001, data[np.random.randint(len(data))])
+        action = SGD_linear_loss(env.get_theta(), 0.01, data[np.random.randint(len(data))])
         next_state, reward, done, loss = env.step(action)
         episode_done = done
 
         if i % len(data) == 0:
             print("Reward: " + str(reward) )
             print("Done: " + str(done) )
+            print("Loss: " + str(loss) )
             # print("losses: ")
             # print(env.losses.get_list())
 

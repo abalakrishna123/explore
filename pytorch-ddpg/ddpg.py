@@ -126,9 +126,9 @@ class DDPG(object):
         action = to_numpy(
             self.actor(to_tensor(np.array([s_t])))
         ).squeeze(0)
-        # action += self.is_training*max(self.epsilon, 0)*self.random_process.sample()
+        action += self.is_training*max(self.epsilon, 0)*self.random_process.sample()
         # HACK: Make all exploring just following gradients
-        action += self.is_training*max(self.epsilon, 0)*SGD_linear_loss(theta, 0.001, data[np.random.randint(len(data))])
+        # action += self.is_training*max(self.epsilon, 0)*SGD_linear_loss(theta, 0.001, data[np.random.randint(len(data))])
         # action = np.clip(action, -0.001, 0.001)
         action = np.clip(action, -0.01, 0.01)
 
@@ -139,7 +139,7 @@ class DDPG(object):
         return action
 
     def SGD_action(self, theta, data):
-        action = SGD_linear_loss(theta, 0.001, data[np.random.randint(len(data))])
+        action = SGD_linear_loss(theta, 0.01, data[np.random.randint(len(data))])
         self.a_t = action
         return action
 
