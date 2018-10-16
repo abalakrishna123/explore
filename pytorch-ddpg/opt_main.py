@@ -102,12 +102,13 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
                 plt.close()
 
             if debug:
-                prLightPurple('#{}: len:{} episode_reward:{} episode_loss:{} steps:{}'.format(
+                prLightPurple('#{}: len:{} episode_reward:{} episode_loss:{} steps:{} theta:{}'.format(
                     episode,
                     episode_steps,
                     episode_reward / float(episode_steps),
                     episode_loss,
-                    episode_steps))
+                    episode_steps,
+                    str(env.theta)))
 
             agent.memory.append(
                 observation,
