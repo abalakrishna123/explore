@@ -16,7 +16,7 @@ from optimizer_env import *
 criterion = nn.MSELoss()
 
 class DDPG(object):
-    def __init__(self, nb_states, nb_actions, args):
+    def __init__(self, nb_states, nb_actions, args, use_cuda=False):
         
         if args.seed > 0:
             self.seed(args.seed)
@@ -57,8 +57,8 @@ class DDPG(object):
         self.a_t = None # Most recent action
         self.is_training = True
 
-        # 
-        if USE_CUDA: self.cuda()
+        if use_cuda:
+            self.cuda()
 
     def update_policy(self):
         # Sample batch

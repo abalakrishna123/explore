@@ -1,4 +1,5 @@
-#!/usr/bin/env python3 
+#!/usr/bin/env python3
+import sys
 
 import numpy as np
 import argparse
@@ -13,9 +14,9 @@ from util import *
 from scipy.io import savemat
 import matplotlib.pyplot as plt
 
-def train(num_iterations, agent, env,  evaluate, validate_steps, output, max_episode_length=None, debug=False):
 
-    print(debug)
+def train(num_iterations, agent, env, evaluate, validate_steps, output, max_episode_length=None, debug=False):
+    prYellow("Debugging?: {}".format(debug))
     agent.is_training = True
     step = episode = episode_steps = 0
     episode_reward = 0.
@@ -25,7 +26,6 @@ def train(num_iterations, agent, env,  evaluate, validate_steps, output, max_epi
     episode_losses = []
 
     while step < num_iterations:
-
         # reset if it is the start of episode
         if observation is None:
             observation = deepcopy(env.reset())
@@ -37,18 +37,18 @@ def train(num_iterations, agent, env,  evaluate, validate_steps, output, max_epi
             action = agent.SGD_action(env.get_theta(), env.get_data())
         else:
             action = agent.select_action(observation, env.get_theta(), env.get_data())
-        
+
         # env response with next_observation, reward, terminate_info
         observation2, reward, done, loss = env.step(action)
         observation2 = deepcopy(observation2)
-        if max_episode_length and episode_steps >= max_episode_length -1:
+        if max_episode_length and episode_steps >= max_episode_length - 1:
             done = True
 
         # agent observe and update policy
         agent.observe(reward, observation2, done)
-        if step > args.warmup :
+        if step > args.warmup:
             agent.update_policy()
-        
+
         # [optional] evaluate
         # if evaluate is not None and validate_steps > 0 and step % validate_steps == 0:
         #     # policy = lambda x: agent.select_action(x, decay_epsilon=False)
@@ -59,34 +59,33 @@ def train(num_iterations, agent, env,  evaluate, validate_steps, output, max_epi
         #         prYellow('[Evaluate] Step_{:07d}: mean_loss:{}'.format(step, validate_loss))
 
         # [optional] save intermediate model
-        if step % int(num_iterations/3) == 0:
+        if step % int(num_iterations / 3) == 0:
             agent.save_model(output)
 
-       # if step % len(env.get_data()) == 0:
-       #     print("Reward: " + str(reward) )
-       #     print("Loss: " + str(loss))
-       #     print("Done: " + str(done) )
+        # if step % len(env.get_data()) == 0:
+        #     print("Reward: " + str(reward) )
+        #     print("Loss: " + str(loss))
+        #     print("Done: " + str(done) )
 
         # update 
         step += 1
         episode_steps += 1
         episode_reward += reward
-        episode_loss = loss # Should just have loss at end of episode since this is what is relevant
+        episode_loss = loss  # Should just have loss at end of episode since this is what is relevant
         observation = deepcopy(observation2)
 
-        if done: # end of episode
+        if done:  # end of episode
+            episode_rewards.append(episode_reward / float(episode_steps))
+            episode_losses.append(episode_loss)
 
-            episode_rewards.append( episode_reward/float(episode_steps)  )
-            episode_losses.append(  episode_loss  )
-
-            if episode % 10 == 0:                 
+            if episode % 10 == 0:
                 x = np.arange(len(episode_rewards))
                 y = np.array(episode_rewards)
                 plt.xlabel('Episode')
                 plt.ylabel(' Average Reward')
                 plt.plot(x, y)
-                plt.savefig('{}/episode_reward'.format(output) +'.png')
-                savemat('{}/episode_reward'.format(output) +'.mat', {'reward':episode_rewards})
+                plt.savefig('{}/episode_reward'.format(output) + '.png')
+                savemat('{}/episode_reward'.format(output) + '.mat', {'reward': episode_rewards})
                 plt.clf()
                 plt.cla()
                 plt.close()
@@ -96,15 +95,19 @@ def train(num_iterations, agent, env,  evaluate, validate_steps, output, max_epi
                 plt.xlabel('Episode')
                 plt.ylabel(' Average Loss')
                 plt.plot(x, y)
-                plt.savefig('{}/episode_loss'.format(output) +'.png')
-                savemat('{}/episode_loss'.format(output) +'.mat', {'loss':episode_losses})
+                plt.savefig('{}/episode_loss'.format(output) + '.png')
+                savemat('{}/episode_loss'.format(output) + '.mat', {'loss': episode_losses})
                 plt.clf()
                 plt.cla()
                 plt.close()
 
-            if debug: 
-                prGreen('#{}: episode_reward:{} steps:{}'.format(episode,episode_reward/float(episode_steps), episode_steps))
-                prGreen('#{}: episode_loss:{} steps:{}'.format(episode,episode_loss,episode_steps))
+            if debug:
+                prLightPurple('#{}: len:{} episode_reward:{} episode_loss:{} steps:{}'.format(
+                    episode,
+                    episode_steps,
+                    episode_reward / float(episode_steps),
+                    episode_loss,
+                    episode_steps))
 
             agent.memory.append(
                 observation,
@@ -119,8 +122,8 @@ def train(num_iterations, agent, env,  evaluate, validate_steps, output, max_epi
             episode_loss = 0.
             episode += 1
 
-def test(num_episodes, agent, env, evaluate, model_path, visualize=True, debug=False):
 
+def test(num_episodes, agent, env, evaluate, model_path, visualize=True, debug=False):
     agent.load_weights(model_path)
     agent.is_training = False
     agent.eval()
@@ -132,7 +135,6 @@ def test(num_episodes, agent, env, evaluate, model_path, visualize=True, debug=F
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description='PyTorch on TORCS with Multi-modal')
 
     parser.add_argument('--mode', default='train', type=str, help='support option: train/test')
@@ -141,37 +143,46 @@ if __name__ == "__main__":
     parser.add_argument('--hidden2', default=300, type=int, help='hidden num of second fully connect layer')
     parser.add_argument('--rate', default=0.001, type=float, help='learning rate')
     parser.add_argument('--prate', default=0.0001, type=float, help='policy net learning rate (only for DDPG)')
-    parser.add_argument('--warmup', default=1000000, type=int, help='time without training but only filling the replay memory')
+    parser.add_argument('--warmup', default=1000000, type=int,
+                        help='time without training but only filling the replay memory')
     parser.add_argument('--discount', default=0.99, type=float, help='')
     parser.add_argument('--bsize', default=64, type=int, help='minibatch size')
     parser.add_argument('--rmsize', default=6000000, type=int, help='memory size')
     parser.add_argument('--window_length', default=1, type=int, help='')
     parser.add_argument('--tau', default=0.001, type=float, help='moving average for target network')
     parser.add_argument('--ou_theta', default=0.15, type=float, help='noise theta')
-    parser.add_argument('--ou_sigma', default=0.2, type=float, help='noise sigma') 
-    parser.add_argument('--ou_mu', default=0.0, type=float, help='noise mu') 
-    parser.add_argument('--validate_episodes', default=20, type=int, help='how many episode to perform during validate experiment')
+    parser.add_argument('--ou_sigma', default=0.2, type=float, help='noise sigma')
+    parser.add_argument('--ou_mu', default=0.0, type=float, help='noise mu')
+    parser.add_argument('--validate_episodes', default=20, type=int,
+                        help='how many episode to perform during validate experiment')
     parser.add_argument('--max_episode_length', default=10000, type=int, help='')
-    parser.add_argument('--validate_steps', default=30000, type=int, help='how many steps to perform a validate experiment')
+    parser.add_argument('--validate_steps', default=30000, type=int,
+                        help='how many steps to perform a validate experiment')
     parser.add_argument('--output', default='output', type=str, help='')
     parser.add_argument('--debug', dest='debug', action='store_true')
-    parser.add_argument('--init_w', default=0.003, type=float, help='') 
+    parser.add_argument('--init_w', default=0.003, type=float, help='')
     parser.add_argument('--train_iter', default=25000000, type=int, help='train iters each timestep')
     parser.add_argument('--epsilon', default=500, type=int, help='linear decay of exploration policy')
     parser.add_argument('--seed', default=-1, type=int, help='')
     parser.add_argument('--resume', default='default', type=str, help='Resuming model path for testing')
     # parser.add_argument('--l2norm', default=0.01, type=float, help='l2 weight decay') # TODO
-    # parser.add_argument('--cuda', dest='cuda', action='store_true') # TODO
+    parser.add_argument('--cuda', dest='cuda', action='store_true')  # TODO
     parser.add_argument('--ngradients', default=100, help='number of gradients included in state', type=int)
     parser.add_argument('--nlosses', default=100, help='number of losses included in state', type=int)
-
+    parser.add_argument('--grad_batch_size', default=50, help='batch size for training agent', type=int)
     args = parser.parse_args()
     args.output = get_output_folder(args.output, args.env)
     if args.resume == 'default':
         args.resume = 'output/{}-run0'.format(args.env)
 
+
+    prYellow("Experiment args: {}".format(str(sys.argv)))
+
+    cuda_on = args.cuda and USE_CUDA
+    prYellow("CUDA enabled?: {}".format(cuda_on))
+
     # env = NormalizedEnv(gym.make(args.env))
-    env = LearnedOptimizationEnv(1000, 50, 1, 0.005, 30, args.nlosses, args.ngradients)
+    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 1, 0.005, 30, args.nlosses, args.ngradients)
 
     if args.seed > 0:
         np.random.seed(args.seed)
@@ -180,18 +191,17 @@ if __name__ == "__main__":
     nb_states = env.get_state_dim()
     nb_actions = env.get_action_dim()
 
-
-    agent = DDPG(nb_states, nb_actions, args)
-    evaluate = Evaluator(args.validate_episodes, 
-        args.validate_steps, args.output, max_episode_length=args.max_episode_length)
+    agent = DDPG(nb_states, nb_actions, args, use_cuda=cuda_on)
+    evaluate = Evaluator(args.validate_episodes,
+                         args.validate_steps, args.output, max_episode_length=args.max_episode_length)
 
     if args.mode == 'train':
-        train(args.train_iter, agent, env, evaluate, 
-            args.validate_steps, args.output, max_episode_length=args.max_episode_length, debug=args.debug)
+        train(args.train_iter, agent, env, evaluate,
+              args.validate_steps, args.output, max_episode_length=args.max_episode_length, debug=args.debug)
 
     elif args.mode == 'test':
         test(args.validate_episodes, agent, env, evaluate, args.resume,
-            visualize=True, debug=args.debug)
+             visualize=True, debug=args.debug)
 
     else:
         raise RuntimeError('undefined mode {}'.format(args.mode))
