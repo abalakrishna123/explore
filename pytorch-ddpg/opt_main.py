@@ -54,7 +54,7 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
         #     # policy = lambda x: agent.select_action(x, decay_epsilon=False)
         #     policy = lambda x: agent.SGD_action(env.get_theta(), env.get_data())
         #     validate_reward, validate_loss = evaluate(env, policy, debug=False, visualize=False)
-        #     if debug: 
+        #     if debug:
         #         prYellow('[Evaluate] Step_{:07d}: mean_reward:{}'.format(step, validate_reward))
         #         prYellow('[Evaluate] Step_{:07d}: mean_loss:{}'.format(step, validate_loss))
 
@@ -67,7 +67,7 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
         #     print("Loss: " + str(loss))
         #     print("Done: " + str(done) )
 
-        # update 
+        # update
         step += 1
         episode_steps += 1
         episode_reward += reward
@@ -169,8 +169,10 @@ if __name__ == "__main__":
     # parser.add_argument('--l2norm', default=0.01, type=float, help='l2 weight decay') # TODO
     parser.add_argument('--cuda', dest='cuda', action='store_true')  # TODO
     parser.add_argument('--ngradients', default=100, help='number of gradients included in state', type=int)
+    parser.add_argument('--skip', default=0, help='number of steps to skip when storing state')
     parser.add_argument('--nlosses', default=100, help='number of losses included in state', type=int)
     parser.add_argument('--grad_batch_size', default=50, help='batch size for training agent', type=int)
+    parser.add_argument('--dataset', default='simple', choices=('simple', 'mnist'))
     args = parser.parse_args()
     args.output = get_output_folder(args.output, args.env)
     if args.resume == 'default':
@@ -183,7 +185,8 @@ if __name__ == "__main__":
     prYellow("CUDA enabled?: {}".format(cuda_on))
 
     # env = NormalizedEnv(gym.make(args.env))
-    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 1, 0.005, 30, args.nlosses, args.ngradients)
+    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 1, 0.005, 30, args.nlosses, args.ngradients,
+        skip=args.skip, dataset=args.dataset)
 
     if args.seed > 0:
         np.random.seed(args.seed)

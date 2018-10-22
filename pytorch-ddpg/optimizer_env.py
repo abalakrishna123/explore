@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque
+import torch
 
 
 # First logical test would be to make sure that LearnedOptimizationEnv
@@ -15,6 +16,27 @@ def generate_linear_data(num_points, dim, noise_std):
     return np.concatenate((X, y.T), axis=1)
 
 
+def get_mnist_data(_, dim, __):
+    """Ignore all of the arguments lulz."""
+    assert dim == 28*28, "MNIST dimensions are 28x28"
+    train_loader = torch.utils.data.DataLoader(
+        datasets.MNIST('../data', train=True, download=True,
+           transform=transforms.Compose([
+               transforms.ToTensor(),
+               transforms.Normalize((0.1307,), (0.3081,))
+           ])),
+        batch_size=1, shuffle=True).cpu()  # add cuda kwargs
+    for sample in train_loader:
+        yield sample.cpu()
+
+
+def get_data(dataset, num_points, dim, noise_std):
+    if dataset.lower() == 'mnist':
+        return get_mnist_data(num_points, dim, noise_std)
+    else:
+        return generate_linear_data(num_points, dim, noise_std)
+
+
 # Get total loss function for linear regression on dataset
 def get_linear_loss(theta, data):
     loss = 0
@@ -23,6 +45,10 @@ def get_linear_loss(theta, data):
     for i in range(len(X)):
         loss += (np.dot(X[i], theta) - y[i]) ** 2
     return loss / float(len(X))
+
+
+def get_loss(_, theta, data):
+    return get_linear_loss(theta, data)
 
 
 def get_stoch_linear_gradient(theta, data, batch_size):
@@ -90,20 +116,21 @@ class Buffer(object):
 
 class LearnedOptimizationEnv:
     def __init__(self, num_points, grad_batch_size, dim, loss_thresh, max_epochs, losses_hist_length,
-                 grads_hist_length):
+                 grads_hist_length, skip=0, dataset='simple'):
         # Get data + initialize optimization parameters
         self.dim = dim
         self.num_points = num_points
-        self.data = generate_linear_data(self.num_points, self.dim, 0.05)
+        self.data = get_data(dataset, self.num_points, self.dim, 0.05)
         self.loss_thresh = loss_thresh
         self.max_epochs = max_epochs
         self.grad_batch_size = grad_batch_size
+        self.skip = skip
 
         # Initialize State
         self.losses_hist_length = losses_hist_length
         self.grads_hist_length = grads_hist_length
         self.theta = np.random.random(self.dim + 1)
-        self.losses = Buffer(self.losses_hist_length, get_linear_loss(self.theta, self.data))
+        self.losses = Buffer(self.losses_hist_length, get_loss(dataset, self.theta, self.data))
         self.gradients = Buffer(self.grads_hist_length,
                                 get_stoch_linear_gradient(self.theta, self.data, self.grad_batch_size))
         self.state = np.array(
@@ -149,7 +176,8 @@ class LearnedOptimizationEnv:
         self.gradients.push(get_stoch_linear_gradient(self.theta, self.data, self.grad_batch_size))
         # Get new state
         next_state = np.array(
-            self.losses.get_list() + [grad_elem for grad in self.gradients.get_list() for grad_elem in grad])
+            self.losses.get_list()[::self.skip + 1] + \
+            [grad_elem for grad in self.gradients.get_list()[::self.skip + 1] for grad_elem in grad])
         # next_state = np.array(self.losses.get_list())
         # Get reward, will be positive if average loss of first losses_hist_length - 1 values is more than new loss
         losses = self.losses.get_list()

@@ -17,17 +17,17 @@ criterion = nn.MSELoss()
 
 class DDPG(object):
     def __init__(self, nb_states, nb_actions, args, use_cuda=False):
-        
+
         if args.seed > 0:
             self.seed(args.seed)
 
         self.nb_states = nb_states
         self.nb_actions= nb_actions
-        
+
         # Create Actor and Critic Network
         net_cfg = {
-            'hidden1':args.hidden1, 
-            'hidden2':args.hidden2, 
+            'hidden1':args.hidden1,
+            'hidden2':args.hidden2,
             'init_w':args.init_w
         }
         self.actor = Actor(self.nb_states, self.nb_actions, **net_cfg)
@@ -40,7 +40,7 @@ class DDPG(object):
 
         hard_update(self.actor_target, self.actor) # Make sure target is with the same weight
         hard_update(self.critic_target, self.critic)
-        
+
         #Create replay buffer
         self.memory = SequentialMemory(limit=args.rmsize, window_length=args.window_length)
         self.random_process = OrnsteinUhlenbeckProcess(size=nb_actions, theta=args.ou_theta, mu=args.ou_mu, sigma=args.ou_sigma)
@@ -51,7 +51,7 @@ class DDPG(object):
         self.discount = args.discount
         self.depsilon = 1.0 / args.epsilon
 
-        # 
+        #
         self.epsilon = 1.0
         self.s_t = None # Most recent state
         self.a_t = None # Most recent action
@@ -79,7 +79,7 @@ class DDPG(object):
         self.critic.zero_grad()
 
         q_batch = self.critic([ to_tensor(state_batch), to_tensor(action_batch) ])
-        
+
         value_loss = criterion(q_batch, target_q_batch)
         value_loss.backward()
         self.critic_optim.step()
@@ -124,17 +124,18 @@ class DDPG(object):
 
     def select_action(self, s_t, theta, data, decay_epsilon=True):
         action = to_numpy(
-            self.actor(to_tensor(np.array([s_t])))
-        ).squeeze(0)
+            self.actor(to_tensor(np.array([s_t])).cpu())
+        ).squeeze(0)  # WARNING: this forces all data onto CPU with .cpu()
         action += self.is_training*max(self.epsilon, 0)*self.random_process.sample()
         # HACK: Make all exploring just following gradients
         # action += self.is_training*max(self.epsilon, 0)*SGD_linear_loss(theta, 0.001, data[np.random.randint(len(data))])
         # action = np.clip(action, -0.001, 0.001)
         action = np.clip(action, -0.01, 0.01)
+        # action = np.clip(action, -0.1, 0.1)  # TODO: collect distribution of non-clipped actions
 
         if decay_epsilon:
             self.epsilon -= self.depsilon
-        
+
         self.a_t = action
         return action
 
