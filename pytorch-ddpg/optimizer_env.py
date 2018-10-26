@@ -211,7 +211,7 @@ class LearnedOptimizationEnv:
 # SGD makes no use of the state at all, but each action is a perturbation
 # of the current parameters
 if __name__ == "__main__":
-    env = LearnedOptimizationEnv(1000, 50, 1, 0.005, 30, 100, 100)
+    env = LearnedOptimizationEnv(1000, 512, 10, 0.1, 30, 32, 32)
     state = env.reset()
     data = env.get_data()
     episode_done = False

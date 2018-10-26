@@ -14,6 +14,10 @@ from util import *
 from scipy.io import savemat
 import matplotlib.pyplot as plt
 
+import os
+cpu_cores = [0,1,2,3,4,5,6] # Cores (numbered 0-11)
+os.system("taskset -pc {} {}".format(",".join(str(i) for i in cpu_cores), os.getpid()))
+
 
 def train(num_iterations, agent, env, evaluate, validate_steps, output, max_episode_length=None, debug=False):
     prYellow("Debugging?: {}".format(debug))
@@ -32,11 +36,16 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
             agent.reset(observation)
         # agent pick action ...
         if step <= args.warmup:
-            # action = agent.random_action()
+            action = agent.random_action()
             # For now when exploring, follow what SGD would do:
-            action = agent.SGD_action(env.get_theta(), env.get_data())
+            # action = agent.SGD_action(env.get_theta(), env.get_data())
         else:
             action = agent.select_action(observation, env.get_theta(), env.get_data())
+
+        # print("ACTION")
+        # print(action)
+        # print("THETA")
+        # print(env.get_theta())
 
         # env response with next_observation, reward, terminate_info
         observation2, reward, done, loss = env.step(action)
@@ -144,7 +153,7 @@ if __name__ == "__main__":
     parser.add_argument('--hidden2', default=300, type=int, help='hidden num of second fully connect layer')
     parser.add_argument('--rate', default=0.001, type=float, help='learning rate')
     parser.add_argument('--prate', default=0.0001, type=float, help='policy net learning rate (only for DDPG)')
-    parser.add_argument('--warmup', default=1000000, type=int,
+    parser.add_argument('--warmup', default=10, type=int,
                         help='time without training but only filling the replay memory')
     parser.add_argument('--discount', default=0.99, type=float, help='')
     parser.add_argument('--bsize', default=64, type=int, help='minibatch size')
@@ -156,14 +165,14 @@ if __name__ == "__main__":
     parser.add_argument('--ou_mu', default=0.0, type=float, help='noise mu')
     parser.add_argument('--validate_episodes', default=20, type=int,
                         help='how many episode to perform during validate experiment')
-    parser.add_argument('--max_episode_length', default=10000, type=int, help='')
+    parser.add_argument('--max_episode_length', default=20000, type=int, help='')
     parser.add_argument('--validate_steps', default=30000, type=int,
                         help='how many steps to perform a validate experiment')
     parser.add_argument('--output', default='output', type=str, help='')
     parser.add_argument('--debug', dest='debug', action='store_true')
     parser.add_argument('--init_w', default=0.003, type=float, help='')
     parser.add_argument('--train_iter', default=25000000, type=int, help='train iters each timestep')
-    parser.add_argument('--epsilon', default=500, type=int, help='linear decay of exploration policy')
+    parser.add_argument('--epsilon', default=100000, type=int, help='linear decay of exploration policy')
     parser.add_argument('--seed', default=-1, type=int, help='')
     parser.add_argument('--resume', default='default', type=str, help='Resuming model path for testing')
     # parser.add_argument('--l2norm', default=0.01, type=float, help='l2 weight decay') # TODO
@@ -185,7 +194,7 @@ if __name__ == "__main__":
     prYellow("CUDA enabled?: {}".format(cuda_on))
 
     # env = NormalizedEnv(gym.make(args.env))
-    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 1, 0.005, 30, args.nlosses, args.ngradients,
+    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 3, 0.1, 30, args.nlosses, args.ngradients,
         skip=args.skip, dataset=args.dataset)
 
     if args.seed > 0:

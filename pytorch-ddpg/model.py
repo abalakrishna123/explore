@@ -1,4 +1,3 @@
-
 import numpy as np
 
 import torch
@@ -13,13 +12,14 @@ def fanin_init(size, fanin=None):
     return torch.Tensor(size).uniform_(-v, v)
 
 class Actor(nn.Module):
-    def __init__(self, nb_states, nb_actions, hidden1=150, hidden2=150, init_w=3e-3):
+    def __init__(self, nb_states, nb_actions, hidden1=40, hidden2=40, init_w=3e-3):
         super(Actor, self).__init__()
         self.fc1 = nn.Linear(nb_states, hidden1)
         self.fc2 = nn.Linear(hidden1, hidden2)
         self.fc3 = nn.Linear(hidden2, nb_actions)
         self.relu = nn.ReLU()
         self.tanh = nn.Tanh()
+        self.linear = nn.Linear(hidden2, nb_actions)
         self.init_weights(init_w)
     
     def init_weights(self, init_w):
@@ -34,10 +34,11 @@ class Actor(nn.Module):
         out = self.relu(out)
         out = self.fc3(out)
         out = self.tanh(out)
+        # out = self.linear(out)
         return out
 
 class Critic(nn.Module):
-    def __init__(self, nb_states, nb_actions, hidden1=150, hidden2=150, init_w=3e-3):
+    def __init__(self, nb_states, nb_actions, hidden1=40, hidden2=40, init_w=3e-3):
         super(Critic, self).__init__()
         self.fc1 = nn.Linear(nb_states, hidden1)
         self.fc2 = nn.Linear(hidden1+nb_actions, hidden2)

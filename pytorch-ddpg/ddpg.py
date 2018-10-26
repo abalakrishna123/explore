@@ -118,19 +118,19 @@ class DDPG(object):
             self.s_t = s_t1
 
     def random_action(self):
-        action = np.random.uniform(-1.,1.,self.nb_actions)
+        action = np.random.uniform(-0.01, 0.01,self.nb_actions)
         self.a_t = action
         return action
 
     def select_action(self, s_t, theta, data, decay_epsilon=True):
         action = to_numpy(
-            self.actor(to_tensor(np.array([s_t])).cpu())
+            self.actor(to_tensor(np.array([s_t])))
         ).squeeze(0)  # WARNING: this forces all data onto CPU with .cpu()
-        action += self.is_training*max(self.epsilon, 0)*self.random_process.sample()
+        action += self.is_training*max(self.epsilon, 0.02)*self.random_process.sample()
+        action = 0.01 * action
         # HACK: Make all exploring just following gradients
         # action += self.is_training*max(self.epsilon, 0)*SGD_linear_loss(theta, 0.001, data[np.random.randint(len(data))])
         # action = np.clip(action, -0.001, 0.001)
-        action = np.clip(action, -0.01, 0.01)
         # action = np.clip(action, -0.1, 0.1)  # TODO: collect distribution of non-clipped actions
 
         if decay_epsilon:
