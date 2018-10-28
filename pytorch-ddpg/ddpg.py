@@ -56,9 +56,21 @@ class DDPG(object):
         self.s_t = None # Most recent state
         self.a_t = None # Most recent action
         self.is_training = True
+        self.warmup_period = args.warmup
 
         if use_cuda:
             self.cuda()
+
+    def actor_clone(self):
+        # Sample batch consisting of entire memory to this point
+        state_batch, action_batch, reward_batch, \
+        next_state_batch, terminal_batch = self.memory.sample_and_split(self.warmup_period)
+      
+        self.actor.zero_grad()
+        actor_pred = self.actor(to_tensor(state_batch))
+        actor_loss = criterion(actor_pred, to_tensor(action_batch))
+        actor_loss.backward()
+        self.actor_optim.step()
 
     def update_policy(self):
         # Sample batch

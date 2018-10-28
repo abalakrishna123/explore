@@ -65,7 +65,8 @@ def get_stoch_linear_gradient(theta, data, batch_size):
 def SGD_linear_loss(theta, eta, data_i):
     X_i = data_i[:-1]
     y_i = data_i[-1]
-    return -eta * (np.dot(X_i, theta) - y_i) * X_i
+    grad = (np.dot(X_i, theta) - y_i) * X_i
+    return -eta * (grad/np.linalg.norm(grad))
 
 
 # Run SGD Optimization

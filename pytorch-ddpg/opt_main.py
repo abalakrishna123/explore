@@ -36,12 +36,15 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
             agent.reset(observation)
         # agent pick action ...
         if step <= args.warmup:
-            action = agent.random_action()
+            # action = agent.random_action()
             # For now when exploring, follow what SGD would do:
-            # action = agent.SGD_action(env.get_theta(), env.get_data())
+            action = agent.SGD_action(env.get_theta(), env.get_data())
         else:
             action = agent.select_action(observation, env.get_theta(), env.get_data())
 
+        # Update actor policy to behavior clone warmup period
+        if step == args.warmup and args.actor_clone:
+            agent.actor_clone()
         # print("ACTION")
         # print(action)
         # print("THETA")
@@ -53,10 +56,11 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
         if max_episode_length and episode_steps >= max_episode_length - 1:
             done = True
 
-        # agent observe and update policy
-        agent.observe(reward, observation2, done)
-        if step > args.warmup:
-            agent.update_policy()
+        if args.update_policy_every_step:
+            # agent observe and update policy
+            agent.observe(reward, observation2, done)
+            if step > args.warmup:
+                agent.update_policy()
 
         # [optional] evaluate
         # if evaluate is not None and validate_steps > 0 and step % validate_steps == 0:
@@ -84,6 +88,12 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
         observation = deepcopy(observation2)
 
         if done:  # end of episode
+            if not args.update_policy_every_step:
+                # agent observe and update policy
+                agent.observe(reward, observation2, done)
+                if step > args.warmup:
+                    agent.update_policy()
+
             episode_rewards.append(episode_reward / float(episode_steps))
             episode_losses.append(episode_loss)
 
@@ -149,11 +159,11 @@ if __name__ == "__main__":
 
     parser.add_argument('--mode', default='train', type=str, help='support option: train/test')
     parser.add_argument('--env', default='LearnedOptimizationEnv', type=str, help='open-ai gym environment')
-    parser.add_argument('--hidden1', default=400, type=int, help='hidden num of first fully connect layer')
-    parser.add_argument('--hidden2', default=300, type=int, help='hidden num of second fully connect layer')
+    parser.add_argument('--hidden1', default=40, type=int, help='hidden num of first fully connect layer')
+    parser.add_argument('--hidden2', default=40, type=int, help='hidden num of second fully connect layer')
     parser.add_argument('--rate', default=0.001, type=float, help='learning rate')
     parser.add_argument('--prate', default=0.0001, type=float, help='policy net learning rate (only for DDPG)')
-    parser.add_argument('--warmup', default=10, type=int,
+    parser.add_argument('--warmup', default=50000, type=int,
                         help='time without training but only filling the replay memory')
     parser.add_argument('--discount', default=0.99, type=float, help='')
     parser.add_argument('--bsize', default=64, type=int, help='minibatch size')
@@ -172,7 +182,7 @@ if __name__ == "__main__":
     parser.add_argument('--debug', dest='debug', action='store_true')
     parser.add_argument('--init_w', default=0.003, type=float, help='')
     parser.add_argument('--train_iter', default=25000000, type=int, help='train iters each timestep')
-    parser.add_argument('--epsilon', default=100000, type=int, help='linear decay of exploration policy')
+    parser.add_argument('--epsilon', default=5, type=int, help='linear decay of exploration policy')
     parser.add_argument('--seed', default=-1, type=int, help='')
     parser.add_argument('--resume', default='default', type=str, help='Resuming model path for testing')
     # parser.add_argument('--l2norm', default=0.01, type=float, help='l2 weight decay') # TODO
@@ -182,6 +192,8 @@ if __name__ == "__main__":
     parser.add_argument('--nlosses', default=100, help='number of losses included in state', type=int)
     parser.add_argument('--grad_batch_size', default=50, help='batch size for training agent', type=int)
     parser.add_argument('--dataset', default='simple', choices=('simple', 'mnist'))
+    parser.add_argument('--actor_clone', default=0, type=int) # whether to behavior clone warmup rollouts, 0 is false (default), 1 is true
+    parser.add_argument('--update_policy_every_step', default=1, type=int) # whether to update policy every step, 1 is true (default), 0 is false
     args = parser.parse_args()
     args.output = get_output_folder(args.output, args.env)
     if args.resume == 'default':
@@ -194,8 +206,9 @@ if __name__ == "__main__":
     prYellow("CUDA enabled?: {}".format(cuda_on))
 
     # env = NormalizedEnv(gym.make(args.env))
-    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 3, 0.1, 30, args.nlosses, args.ngradients,
+    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 2, 0.1, 30, args.nlosses, args.ngradients,
         skip=args.skip, dataset=args.dataset)
+
 
     if args.seed > 0:
         np.random.seed(args.seed)
