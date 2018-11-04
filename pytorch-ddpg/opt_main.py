@@ -20,8 +20,8 @@ os.system("taskset -pc {} {}".format(",".join(str(i) for i in cpu_cores), os.get
 
 
 def plot(x, y, xlabel, ylabel, hook=lambda plt: None):
-    x = np.arange(len(episode_rewards))
-    y = np.array(episode_rewards)
+    x = np.arange(x)
+    y = np.array(y)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.plot(x, y)
@@ -99,7 +99,8 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
         episode_reward += reward
         episode_loss = loss  # Should just have loss at end of episode since this is what is relevant
         observation = deepcopy(observation2)
-        episode_max_delta = max(episode_max_delta, np.linalg.norm(agent.a_delta_t))
+        if agent.a_delta_t is not None:
+            episode_max_delta = max(episode_max_delta, np.linalg.norm(agent.a_delta_t))
 
         if done:  # end of episode
             if not args.update_policy_every_step:
@@ -117,6 +118,7 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
                     def hook(plt):
                         plt.savefig('{}/episode_{}'.format(output, field_name) + '.png')
                         savemat('{}/episode_{}'.format(output, field_name) + '.mat', {field_name: episode_rewards})
+                    return hook
                 plot(len(episode_rewards), episode_rewards, 'Episode', 'Average Reward', generate_hook('reward'))
                 plot(len(episode_losses), episode_losses, 'Episode', 'Average Loss', generate_hook('loss'))
                 plot(len(episode_deltas), episode_deltas, 'Episode', 'Max Delta', generate_hook('deltas'))

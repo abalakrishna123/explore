@@ -65,7 +65,7 @@ def linear_batch_gradient(theta, eta, data):
     X = data[:, :-1]
     Y = data[:, -1]
     grad = 2 * X.T.dot(X.dot(theta) - Y)
-    return -eta * grad / np.linalg.norm(grad))
+    return -eta * grad / np.linalg.norm(grad)
 
 
 # Perform SGD
