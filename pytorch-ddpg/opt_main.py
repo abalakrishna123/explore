@@ -19,15 +19,28 @@ cpu_cores = [0,1,2,3,4,5,6] # Cores (numbered 0-11)
 os.system("taskset -pc {} {}".format(",".join(str(i) for i in cpu_cores), os.getpid()))
 
 
+def plot(x, y, xlabel, ylabel, hook=lambda plt: None):
+    x = np.arange(len(episode_rewards))
+    y = np.array(episode_rewards)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.plot(x, y)
+    hook(plt)
+    plt.clf()
+    plt.cla()
+    plt.close()
+
 def train(num_iterations, agent, env, evaluate, validate_steps, output, max_episode_length=None, debug=False):
     prYellow("Debugging?: {}".format(debug))
     agent.is_training = True
     step = episode = episode_steps = 0
     episode_reward = 0.
     episode_loss = 0.
+    episode_max_delta = 0.
     observation = None
     episode_rewards = []
     episode_losses = []
+    episode_deltas = []
 
     while step < num_iterations:
         # reset if it is the start of episode
@@ -86,6 +99,7 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
         episode_reward += reward
         episode_loss = loss  # Should just have loss at end of episode since this is what is relevant
         observation = deepcopy(observation2)
+        episode_max_delta = max(episode_max_delta, np.linalg.norm(agent.a_delta_t))
 
         if done:  # end of episode
             if not args.update_policy_every_step:
@@ -96,29 +110,16 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
 
             episode_rewards.append(episode_reward / float(episode_steps))
             episode_losses.append(episode_loss)
+            episode_deltas.append(episode_max_delta)
 
             if episode % 10 == 0:
-                x = np.arange(len(episode_rewards))
-                y = np.array(episode_rewards)
-                plt.xlabel('Episode')
-                plt.ylabel(' Average Reward')
-                plt.plot(x, y)
-                plt.savefig('{}/episode_reward'.format(output) + '.png')
-                savemat('{}/episode_reward'.format(output) + '.mat', {'reward': episode_rewards})
-                plt.clf()
-                plt.cla()
-                plt.close()
-
-                x = np.arange(len(episode_losses))
-                y = np.array(episode_losses)
-                plt.xlabel('Episode')
-                plt.ylabel(' Average Loss')
-                plt.plot(x, y)
-                plt.savefig('{}/episode_loss'.format(output) + '.png')
-                savemat('{}/episode_loss'.format(output) + '.mat', {'loss': episode_losses})
-                plt.clf()
-                plt.cla()
-                plt.close()
+                def generate_hook(field_name):
+                    def hook(plt):
+                        plt.savefig('{}/episode_{}'.format(output, field_name) + '.png')
+                        savemat('{}/episode_{}'.format(output, field_name) + '.mat', {field_name: episode_rewards})
+                plot(len(episode_rewards), episode_rewards, 'Episode', 'Average Reward', generate_hook('reward'))
+                plot(len(episode_losses), episode_losses, 'Episode', 'Average Loss', generate_hook('loss'))
+                plot(len(episode_deltas), episode_deltas, 'Episode', 'Max Delta', generate_hook('deltas'))
 
             if debug:
                 prLightPurple('#{}: len:{} episode_reward:{} episode_loss:{} steps:{} theta:{}'.format(

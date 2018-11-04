@@ -57,6 +57,7 @@ class DDPG(object):
         self.a_t = None # Most recent action
         self.is_training = True
         self.warmup_period = args.warmup
+        self.a_delta_t = None  # Most recent action delta
 
         if use_cuda:
             self.cuda()
@@ -65,7 +66,7 @@ class DDPG(object):
         # Sample batch consisting of entire memory to this point
         state_batch, action_batch, reward_batch, \
         next_state_batch, terminal_batch = self.memory.sample_and_split(self.warmup_period)
-      
+
         self.actor.zero_grad()
         actor_pred = self.actor(to_tensor(state_batch))
         actor_loss = criterion(actor_pred, to_tensor(action_batch))
@@ -135,24 +136,28 @@ class DDPG(object):
         return action
 
     def select_action(self, s_t, theta, data, decay_epsilon=True):
-        action = to_numpy(
+        action_delta = to_numpy(
             self.actor(to_tensor(np.array([s_t])))
         ).squeeze(0)  # WARNING: this forces all data onto CPU with .cpu()
-        action += self.is_training*max(self.epsilon, 0.02)*self.random_process.sample()
-        action = 0.01 * action
-        # HACK: Make all exploring just following gradients
-        # action += self.is_training*max(self.epsilon, 0)*SGD_linear_loss(theta, 0.001, data[np.random.randint(len(data))])
-        # action = np.clip(action, -0.001, 0.001)
-        # action = np.clip(action, -0.1, 0.1)  # TODO: collect distribution of non-clipped actions
+
+        # add exploration, and rescale
+        action_delta += self.is_training*max(self.epsilon, 0.02)*self.random_process.sample()
+        action_delta = 0.01 * action_delta
+        print(np.linalg.norm(action_delta), end="\r")
+
+        # training perturbation off of gradient
+        gradient = linear_gradient(theta, 0.01, data[np.random.randint(len(data))])
+        action = gradient + action_delta
 
         if decay_epsilon:
             self.epsilon -= self.depsilon
 
+        self.a_delta_t = action_delta
         self.a_t = action
         return action
 
     def SGD_action(self, theta, data):
-        action = SGD_linear_loss(theta, 0.01, data[np.random.randint(len(data))])
+        action = linear_gradient(theta, 0.01, data[np.random.randint(len(data))])
         self.a_t = action
         return action
 

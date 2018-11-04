@@ -61,8 +61,15 @@ def get_stoch_linear_gradient(theta, data, batch_size):
     return (grad / float(batch_size)).tolist()
 
 
-# Return SGD update step
-def SGD_linear_loss(theta, eta, data_i):
+def linear_batch_gradient(theta, eta, data):
+    X = data[:, :-1]
+    Y = data[:, -1]
+    grad = 2 * X.T.dot(X.dot(theta) - Y)
+    return -eta * grad / np.linalg.norm(grad))
+
+
+# Perform SGD
+def linear_gradient(theta, eta, data_i):
     X_i = data_i[:-1]
     y_i = data_i[-1]
     grad = (np.dot(X_i, theta) - y_i) * X_i
@@ -78,7 +85,7 @@ def optimize_linear_SGD(data, eta, loss_thresh, max_epochs):
     while loss > loss_thresh and epochs < max_epochs:
         np.random.shuffle(data)
         for i in range(len(data)):
-            theta = theta + SGD_linear_loss(theta, eta, data[i])
+            theta = theta + linear_gradient(theta, eta, data[i])
         loss = get_linear_loss(theta, data)
         if epochs % 100 == 0:
             print("Loss: " + str(loss))
@@ -221,7 +228,7 @@ if __name__ == "__main__":
     rewards = []
     losses = []
     while episode_done is False:
-        action = SGD_linear_loss(env.get_theta(), 0.01, data[np.random.randint(len(data))])
+        action = linear_gradient(env.get_theta(), 0.01, data[np.random.randint(len(data))])
         next_state, reward, done, loss = env.step(action)
         episode_done = done
 
