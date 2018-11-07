@@ -209,7 +209,7 @@ if __name__ == "__main__":
     prYellow("CUDA enabled?: {}".format(cuda_on))
 
     # env = NormalizedEnv(gym.make(args.env))
-    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 2, 0.1, 30, args.nlosses, args.ngradients,
+    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 2, 0.1, 20000, args.nlosses, args.ngradients,
         skip=args.skip, dataset=args.dataset)
 
 
