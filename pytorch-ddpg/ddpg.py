@@ -142,12 +142,11 @@ class DDPG(object):
 
         # add exploration, and rescale
         action_delta += self.is_training*max(self.epsilon, 0.02)*self.random_process.sample()
-        action_delta = 0.1 * action_delta
+        action_delta = 0.01 * action_delta
         print(np.linalg.norm(action_delta), end="\r")
 
         # training perturbation off of gradient
-        gradient = linear_gradient(theta, 0.01, data[np.random.randint(len(data))])
-        action = gradient + action_delta
+        action = linear_gradient(theta, action_delta, data[np.random.randint(len(data))])
 
         if decay_epsilon:
             self.epsilon -= self.depsilon
