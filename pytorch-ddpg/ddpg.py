@@ -21,6 +21,7 @@ class DDPG(object):
         if args.seed > 0:
             self.seed(args.seed)
 
+        self.dataset = args.dataset
         self.nb_states = nb_states
         self.nb_actions= nb_actions
 
@@ -146,7 +147,7 @@ class DDPG(object):
         print(np.linalg.norm(action_delta), end="\r")
 
         # training perturbation off of gradient
-        action = linear_gradient(theta, action_delta, data[np.random.randint(len(data))])
+        action = get_stoch_gradient(self.dataset, theta, data, 1, eta=np.linalg.norm(action_delta))
 
         if decay_epsilon:
             self.epsilon -= self.depsilon
@@ -156,7 +157,7 @@ class DDPG(object):
         return action
 
     def SGD_action(self, theta, data):
-        action = linear_gradient(theta, 0.01, data[np.random.randint(len(data))])
+        action = get_stoch_gradient(self.dataset, theta, data, 1, eta=0.01)
         self.a_t = action
         return action
 

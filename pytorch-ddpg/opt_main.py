@@ -194,9 +194,10 @@ if __name__ == "__main__":
     parser.add_argument('--skip', default=0, help='number of steps to skip when storing state')
     parser.add_argument('--nlosses', default=100, help='number of losses included in state', type=int)
     parser.add_argument('--grad_batch_size', default=50, help='batch size for training agent', type=int)
-    parser.add_argument('--dataset', default='simple', choices=('simple', 'mnist'))
+    parser.add_argument('--dataset', default='simple', choices=('simple', 'mnist', 'nonconvex_easy', 'nonconvex_medium', 'nonconvex_hard'))
     parser.add_argument('--actor_clone', default=0, type=int) # whether to behavior clone warmup rollouts, 0 is false (default), 1 is true
     parser.add_argument('--update_policy_every_step', default=1, type=int) # whether to update policy every step, 1 is true (default), 0 is false
+    # parser.add_argument('--single_lr', action='store_true', help='if true, use a single learning rate for all dimensions')
     args = parser.parse_args()
     args.output = get_output_folder(args.output, args.env)
     if args.resume == 'default':

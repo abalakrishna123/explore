@@ -1,14 +1,40 @@
+"""Number of different environments and scenarios.
+
+Data and losses are organized into the following order:
+- linear
+- MNIST
+- nonconvex easy
+- nonconvex medium
+- nonconvex hard
+- CIFAR-10 (coming soon)
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque
 import torch
 
 
+#################
+# FAKE DATASETS #
+#################
+
+
+def get_data(dataset, num_points, dim, noise_std):
+    """Main data-loading abstraction"""
+    if dataset.lower() == 'simple':
+        return generate_linear_data(num_points, dim, noise_std)
+    elif dataset.lower() == 'mnist':
+        return get_mnist_data(num_points, dim, noise_std)
+    elif dataset.lower() in ('nonconvex_easy', 'nonconvex_medium', 'nonconvex_hard'):
+        return get_nonconvex_easy_data(num_points, dim, noise_std)
+
+
 # First logical test would be to make sure that LearnedOptimizationEnv
 # works when just use SGD as action, then test DDPG, should be easy
 
-# Generate roughly linear synthetic data with noise
 def generate_linear_data(num_points, dim, noise_std):
+    """Generate roughly linear synthetic data with noise"""
     theta = 10 * np.ones(dim + 1)
     X = np.random.random((num_points, dim + 1))
     X[:, 0] = np.ones(num_points)
@@ -30,36 +56,109 @@ def get_mnist_data(_, dim, __):
         yield sample.cpu()
 
 
-def get_data(dataset, num_points, dim, noise_std):
-    if dataset.lower() == 'mnist':
-        return get_mnist_data(num_points, dim, noise_std)
-    else:
-        return generate_linear_data(num_points, dim, noise_std)
+def get_nonconvex_easy_data(num_points, dim, noise_std):
+    return generate_linear_data(num_points, dim, noise_std)
 
 
-# Get total loss function for linear regression on dataset
+########
+# LOSS #
+########
+
+
+def get_loss(dataset, theta, data):
+    if dataset.lower() == 'simple':
+        return get_linear_loss(theta, data)
+    elif dataset.lower() == 'mnist':
+        return get_mnist_loss(theta, data)
+    elif dataset.lower() == 'nonconvex_easy':
+        return get_nonconvex_easy_loss(theta, data)
+    elif dataset.lower() == 'nonconvex_medium':
+        return get_nonconvex_medium_loss(theta, data)
+    elif dataset.lower() == 'nonconvex_hard':
+        return get_nonconvex_hard_loss(theta, data)
+
+
 def get_linear_loss(theta, data):
-    loss = 0
+    """Get total loss function for linear regression on dataset"""
     X = data[:, :-1]
     y = data[:, -1]
-    for i in range(len(X)):
-        loss += (np.dot(X[i], theta) - y[i]) ** 2
-    return loss / float(len(X))
+    return np.linalg.norm(X.dot(theta) - y) / float(len(X))
 
 
-def get_loss(_, theta, data):
+def get_mnist_loss(theta, data):
     return get_linear_loss(theta, data)
 
 
-def get_stoch_linear_gradient(theta, data, batch_size):
+def get_nonconvex_easy_loss(theta, data):
     X = data[:, :-1]
     y = data[:, -1]
-    grad = np.zeros(len(X[0]))
-    indices = np.random.randint(len(X), size=batch_size)
-    for i in indices:
-        grad += 2 * (np.dot(X[i], theta) - y[i]) * X[i]
-    return (grad / float(batch_size)).tolist()
+    return np.linalg.norm(np.minimum(X.dot(theta) - y, X.dot(theta) - 2*y)) / float(len(X))
 
+
+def get_nonconvex_medium_loss(theta, data):
+    X = data[:, :-1]
+    y = data[:, -1]
+    return np.linalg.norm(np.minimum(X.dot(theta) - y, X.dot(theta) - 2*y)) / float(len(X))
+
+
+def get_nonconvex_hard_loss(theta, data):
+    X = data[:, :-1]
+    y = data[:, -1]
+    return np.linalg.norm(np.sin(X.dot(theta) - y)) / float(len(X))
+
+
+############
+# GRADIENT #
+############
+
+
+def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
+    X, Y = data[:, :-1], data[:, -1]
+
+    # select batch
+    indices = np.random.randint(len(X), size=batch_size)
+    x, y = X[indices], Y[indices]
+
+    if dataset.lower() == 'simple':
+        gradient = get_stoch_linear_gradient(theta, x, y)
+    elif dataset.lower() == 'mnist':
+        gradient = get_stoch_linear_gradient(theta, x, y)
+    elif dataset.lower() == 'nonconvex_easy':
+        gradient = get_nonconvex_easy_gradient(theta, x, y)
+    elif dataset.lower() == 'nonconvex_medium':
+        gradient = get_nonconvex_medium_gradient(theta, x, y)
+    elif dataset.lower() == 'nonconvex_hard':
+        gradient = get_nonconvex_hard_gradient(theta, x, y)
+    else:
+        raise UserWarning('Invalid dataset: {}'.format(dataset))
+
+    # normalize gradient
+    gradient = -eta * gradient / float(batch_size)
+    gradient = gradient.tolist()
+
+    return gradient
+
+
+def get_stoch_linear_gradient(theta, x, y):
+    return 2 * x.T.dot(x.dot(theta) - y)
+
+
+def get_nonconvex_easy_gradient(theta, x, y):
+    return get_stoch_linear_gradient(theta, x, y)
+
+
+def get_nonconvex_medium_gradient(theta, x, y):
+    indicator = np.linalg.norm(x.dot(theta) - y) < np.linalg.norm(x.dot(theta) - 2 * y)
+    gradient1 = get_stoch_linear_gradient(theta, x, y)
+    gradient2 = get_stoch_linear_gradient(theta, x, 2*y)
+    return gradient1 * indicator + gradient2 * (1 - indicator)
+
+
+def get_nonconvex_hard_gradient(theta, x, y):
+    pass
+
+
+# Some other gradients?
 
 def linear_batch_gradient(theta, eta, data):
     X = data[:, :-1]
@@ -93,6 +192,11 @@ def optimize_linear_SGD(data, eta, loss_thresh, max_epochs):
     return [theta, epochs, loss]
 
 
+#############
+# UTILITIES #
+#############
+
+
 def plot_results(learned_theta, data):
     X = data[:, :-1]
     y = data[:, -1]
@@ -117,6 +221,11 @@ class Buffer(object):
         return list(self.buffer)
 
 
+###############
+# ENVIRONMENT #
+###############
+
+
 # TODO: Add something about exploration policies, this should probably be in the DDPG part tbh since can just step
 #       using this. Can add in exploration policies once basic DDPG works
 # TODO: Currently operates off linear data with linear loss, will need to make this more general when optimizing
@@ -126,6 +235,7 @@ class LearnedOptimizationEnv:
     def __init__(self, num_points, grad_batch_size, dim, loss_thresh, max_steps, losses_hist_length,
                  grads_hist_length, skip=0, dataset='simple'):
         # Get data + initialize optimization parameters
+        self.dataset = dataset
         self.dim = dim
         self.num_points = num_points
         self.data = get_data(dataset, self.num_points, self.dim, 0.05)
@@ -141,7 +251,7 @@ class LearnedOptimizationEnv:
         self.theta = np.random.random(self.dim + 1)
         self.losses = Buffer(self.losses_hist_length, get_loss(dataset, self.theta, self.data))
         self.gradients = Buffer(self.grads_hist_length,
-                                get_stoch_linear_gradient(self.theta, self.data, self.grad_batch_size))
+                                get_stoch_gradient(self.dataset, self.theta, self.data, self.grad_batch_size))
         self.state = np.array(
             self.losses.get_list() + [grad_elem for grad in self.gradients.get_list() for grad_elem in grad])
         # self.state = np.array(self.losses.get_list())
@@ -150,9 +260,9 @@ class LearnedOptimizationEnv:
         """Reset environment and get initial state"""
         self.p_coor = 1
         self.theta = np.random.random(self.dim + 1)
-        self.losses = Buffer(self.losses_hist_length, get_linear_loss(self.theta, self.data))
+        self.losses = Buffer(self.losses_hist_length, get_loss(self.dataset, self.theta, self.data))
         self.gradients = Buffer(self.grads_hist_length,
-                                get_stoch_linear_gradient(self.theta, self.data, self.grad_batch_size))
+                                get_stoch_gradient(self.dataset, self.theta, self.data, self.grad_batch_size))
         self.state = np.array(
             self.losses.get_list() + [grad_elem for grad in self.gradients.get_list() for grad_elem in grad])
         self.num_steps = 0
@@ -182,8 +292,8 @@ class LearnedOptimizationEnv:
         done = True if (self.losses.get_list()[-1] < self.loss_thresh or self.num_steps >= self.max_steps) else False
         # --- Get new state ---
         # Update losses and gradients variables based on current loss and gradient
-        self.losses.push(get_linear_loss(self.theta, self.data))
-        self.gradients.push(get_stoch_linear_gradient(self.theta, self.data, self.grad_batch_size))
+        self.losses.push(get_loss(self.dataset, self.theta, self.data))
+        self.gradients.push(get_stoch_gradient(self.dataset, self.theta, self.data, self.grad_batch_size))
         # Get new state
         next_state = np.array(
             self.losses.get_list()[::self.skip + 1] + \
