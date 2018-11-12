@@ -18,7 +18,7 @@ import pickle
 
 
 # env = gym.make('CartPole-v0').unwrapped
-env = LearnedOptimizationEnv(1000, 512, 50, 0.1, 20000, 32, 32)
+env = LearnedOptimizationEnv(1000, 512, 10, 0.1, 20000, 32, 32)
 nb_actions = 2
 
 # set up matplotlib
@@ -151,7 +151,7 @@ class ReplayMemory(object):
 
 class DQN(nn.Module):
     # This will output Q values of all nb_actions actions given a state
-    def __init__(self, state_dim, nb_actions, hidden1=100, hidden2=100):
+    def __init__(self, state_dim, nb_actions, hidden1=50, hidden2=50):
         super(DQN, self).__init__()
         self.fc1 = nn.Linear(state_dim, hidden1)
         self.fc2 = nn.Linear(hidden1, hidden2)
@@ -188,11 +188,11 @@ class DQN(nn.Module):
 #    episode.
 #
 
-BATCH_SIZE = 128
+BATCH_SIZE = 1024
 GAMMA = 0.999
 EPS_START = 0.9
-EPS_END = 0.05
-EPS_DECAY = 200000
+EPS_END = 0
+EPS_DECAY = 2000000
 TARGET_UPDATE = 100
 
 policy_net = DQN(env.get_state_dim(), nb_actions).to(device)
@@ -209,9 +209,9 @@ steps_done = 0
 def encode_action(env, action):
     data = env.get_data()
     if action == 0:
-        lr = 0.05
+        lr = 0.01
     else:
-        lr = 0.5
+        lr = 0.1
 
     return linear_gradient(env.get_theta(), lr, data[np.random.randint(len(data))])
 
@@ -296,6 +296,8 @@ def optimize_model():
     # Compute V(s_{t+1}) for all next states.
     next_state_values = torch.zeros(BATCH_SIZE, device=device)
     next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
+    # Add reward clipping
+    
     # Compute the expected Q values
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
@@ -323,7 +325,7 @@ def optimize_model():
 #
 
 num_episodes = 10000
-episode_lengths = []
+episode_losses = []
 episode_steps = []
 episode_action_counts = []
 for i_episode in range(num_episodes):
@@ -355,7 +357,7 @@ for i_episode in range(num_episodes):
             episode_durations.append(t + 1)
             # plot_durations()
             break
-    episode_lengths.append(loss)
+    episode_losses.append(loss)
     episode_steps.append(env.num_steps)
     episode_action_counts.append(action_counts)
     print("EPISODE LOSS: " + str(loss))
@@ -365,7 +367,7 @@ for i_episode in range(num_episodes):
     # Update the target network
     if i_episode % TARGET_UPDATE == 0:
         target_net.load_state_dict(policy_net.state_dict())
-        torch.save(policy_net.state_dict(), 'saved_model_' + str(i_episode) + ".pt")
-        pickle.dump({'losses': episode_losses, 'steps': episode_steps, 'action_counts' : episode_action_counts}, open("results.p", "wb"))
+        torch.save(policy_net.state_dict(), 'q_learning_data1/saved_model_' + str(i_episode) + ".pt")
+        pickle.dump({'losses': episode_losses, 'steps': episode_steps, 'action_counts' : episode_action_counts}, open("q_learning_data1/results.p", "wb"))
 
 print('Complete')

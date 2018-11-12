@@ -41,6 +41,7 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
     episode_rewards = []
     episode_losses = []
     episode_deltas = []
+    episode_steps_list = []
 
     while step < num_iterations:
         # reset if it is the start of episode
@@ -112,6 +113,7 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
             episode_rewards.append(episode_reward / float(episode_steps))
             episode_losses.append(episode_loss)
             episode_deltas.append(episode_max_delta)
+            episode_steps_list.append(episode_steps)
 
             if episode % 10 == 0:
                 def generate_hook(field_name):
@@ -122,6 +124,7 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
                 plot(len(episode_rewards), episode_rewards, 'Episode', 'Average Reward', generate_hook('reward'))
                 plot(len(episode_losses), episode_losses, 'Episode', 'Average Loss', generate_hook('loss'))
                 plot(len(episode_deltas), episode_deltas, 'Episode', 'Max Delta', generate_hook('deltas'))
+                plot(len(episode_steps_list), episode_steps_list, 'Episode', 'Total Steps', generate_hook('steps'))
 
             if debug:
                 prLightPurple('#{}: len:{} episode_reward:{} episode_loss:{} steps:{} theta:{}'.format(
@@ -166,7 +169,7 @@ if __name__ == "__main__":
     parser.add_argument('--hidden2', default=40, type=int, help='hidden num of second fully connect layer')
     parser.add_argument('--rate', default=0.001, type=float, help='learning rate')
     parser.add_argument('--prate', default=0.0001, type=float, help='policy net learning rate (only for DDPG)')
-    parser.add_argument('--warmup', default=50000, type=int,
+    parser.add_argument('--warmup', default=5000000, type=int,
                         help='time without training but only filling the replay memory')
     parser.add_argument('--discount', default=0.99, type=float, help='')
     parser.add_argument('--bsize', default=64, type=int, help='minibatch size')
@@ -210,7 +213,7 @@ if __name__ == "__main__":
     prYellow("CUDA enabled?: {}".format(cuda_on))
 
     # env = NormalizedEnv(gym.make(args.env))
-    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 2, 0.1, 20000, args.nlosses, args.ngradients,
+    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 10, 1, 20000, args.nlosses, args.ngradients,
         skip=args.skip, dataset=args.dataset)
 
 

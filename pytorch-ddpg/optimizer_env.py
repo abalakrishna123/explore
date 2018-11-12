@@ -13,12 +13,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque
 import torch
+import pickle
 
 
 #################
 # FAKE DATASETS #
 #################
-
 
 def get_data(dataset, num_points, dim, noise_std):
     """Main data-loading abstraction"""
@@ -138,6 +138,79 @@ def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
 
     return gradient
 
+def run_adam_optimizer(env, alpha=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-8):	
+    state = env.reset()
+    data = env.get_data()
+    episode_done = False
+
+    rewards = []
+    losses = []
+    m_t = np.zeros(len(env.theta))
+    v_t = np.zeros(len(env.theta))
+    t = 0
+    while episode_done is False:
+        t += 1
+        g_t = np.array(get_stoch_gradient(env.dataset, env.theta, env.data, env.grad_batch_size))
+        m_t = beta_1*m_t + (1-beta_1)*g_t
+        v_t = beta_2 * v_t + (1-beta_2)*g_t * g_t 
+        m_cap = m_t/(1 - (beta_1**t))
+        v_cap = v_t/(1 - (beta_2**t))
+        action = -(alpha * m_cap) / (np.sqrt(v_cap) + epsilon)
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done 
+        if t % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(t)
+    print(episode_done)
+
+    return t, np.sum(rewards), losses[-1]
+
+    # # Only plot results if dim = 1
+    # plot_results(env.get_theta(), data)
+    # plt.plot(losses)
+    # plt.show()
+    # plt.plot(rewards)
+    # plt.show()
+
+def run_SGD(env, step_size = 0.01):
+    state = env.reset()
+    data = env.get_data()
+    print(env.get_state_dim())
+    episode_done = False
+
+    i = 0
+    rewards = []
+    losses = []
+    while episode_done is False:
+        action = linear_gradient(env.get_theta(), step_size, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(i)
+    print(episode_done)
+    return i, np.sum(rewards), losses[-1]
+
+    # Only plot results if dim = 1
+    # plot_results(env.get_theta(), data)
+    # plt.plot(losses)
+    # plt.show()
+    # plt.plot(rewards)
+    # plt.show()
 
 def get_stoch_linear_gradient(theta, x, y):
     return 2 * x.T.dot(x.dot(theta) - y)
@@ -328,41 +401,25 @@ class LearnedOptimizationEnv:
         return len(self.theta)
 
 
-# Analyze performance of SGD when plugged into this framework, note that
-# SGD makes no use of the state at all, but each action is a perturbation
-# of the current parameters
+# Here we can compare SGD, Adam against learned optimizer
 if __name__ == "__main__":
-    env = LearnedOptimizationEnv(1000, 512, 50, 0.1, 20000, 32, 32)
-    state = env.reset()
-    data = env.get_data()
-    print(env.get_state_dim())
-    episode_done = False
+    env = LearnedOptimizationEnv(1000, 50, 10, 1, 20000, 32, 32, 0, 'nonconvex_medium')
+    run_adam_optimizer(env)
 
-    i = 0
-    rewards = []
-    losses = []
-    while episode_done is False:
-        action = linear_gradient(env.get_theta(), 0.5, data[np.random.randint(len(data))])
-        next_state, reward, done, loss = env.step(action)
-        episode_done = done
+    # episode_rewards = []
+    # episode_losses = []
+    # episode_steps_list = []
 
-        if i % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
-            # print("losses: ")
-            # print(env.losses.get_list())
+    # env = LearnedOptimizationEnv(1000, 50, 10, 1, 20000, 32, 32, 0, 'nonconvex_medium')
+    # num_episodes = 1000
 
-        i += 1
-        rewards.append(reward)
-        losses.append(loss)
+    # for i in range(num_episodes):
+    # 	print("Episode :" + str(i))
+    # 	num_steps, ep_reward, ep_final_loss = run_SGD(env)
+    # 	episode_rewards.append(ep_reward)
+    # 	episodes_losses.append(ep_losses)
+    # 	episode_steps_list.append(num_steps)
 
-    print(i)
-    print(episode_done)
-
-    # Only plot results if dim = 1
-    plot_results(env.get_theta(), data)
-    plt.plot(losses)
-    plt.show()
-    plt.plot(rewards)
-    plt.show()
+    # 	if i % 100 == 0:
+	   #  	pickle.dump( {'episode_steps' : episode_steps_list, 'episode_rewards' : episode_rewards, 
+	   #  		'episode_losses' : episode_losses}, open( "SGD_stats.p", "wb" ) )
