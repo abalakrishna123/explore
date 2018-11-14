@@ -292,7 +292,7 @@ def run_multiplicative_weights(env, step_size_choices):
 
     print(i)
     print(episode_done)
-    return i, np.sum(rewards), losses[-1]
+    return i, np.sum(rewards), losses[-1], probs
 
 def run_contextual_bandits(env, step_size_choices):
     pass
@@ -469,7 +469,7 @@ class LearnedOptimizationEnv:
         max_reward = -np.inf
         data = env.get_data()
         for i in range(len(actions)):
-            temp_theta = self.theta - linear_gradient(self.get_theta(), actions[i], data[np.random.randint(len(data))])
+            temp_theta = self.theta + linear_gradient(self.get_theta(), actions[i], data[np.random.randint(len(data))])
             losses = self.losses.get_list()
             r = np.mean(losses) - get_loss(self.dataset, temp_theta, self.data)
             # print("ACTION THEN REWARD")
@@ -548,9 +548,12 @@ if __name__ == "__main__":
     print("Random Learning Rate")
     rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
     print("Multiplicative Weights")
-    run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-    print("FTL")
-    FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    weights = run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    print("WEIGHTS")
+    print(weights[-1])
+    print("ENDWEIGHTS")
+    # print("FTL")
+    # FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
     print("SGD")
     run_SGD(env)
 
