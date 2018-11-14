@@ -169,7 +169,7 @@ if __name__ == "__main__":
     parser.add_argument('--hidden2', default=40, type=int, help='hidden num of second fully connect layer')
     parser.add_argument('--rate', default=0.001, type=float, help='learning rate')
     parser.add_argument('--prate', default=0.0001, type=float, help='policy net learning rate (only for DDPG)')
-    parser.add_argument('--warmup', default=5000000, type=int,
+    parser.add_argument('--warmup', default=500000, type=int,
                         help='time without training but only filling the replay memory')
     parser.add_argument('--discount', default=0.99, type=float, help='')
     parser.add_argument('--bsize', default=64, type=int, help='minibatch size')
@@ -213,7 +213,7 @@ if __name__ == "__main__":
     prYellow("CUDA enabled?: {}".format(cuda_on))
 
     # env = NormalizedEnv(gym.make(args.env))
-    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 10, 1, 20000, args.nlosses, args.ngradients,
+    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 5, 1, 20000, args.nlosses, args.ngradients,
         skip=args.skip, dataset=args.dataset)
 
 
