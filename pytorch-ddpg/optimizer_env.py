@@ -319,6 +319,7 @@ def run_multiplicative_weights(env, step_size_choices):
 def ind_max(x):
   m = max(x)
   return x.index(m)
+  
 def run_UCB(env, step_size_choices):
     state = env.reset()
     data = env.get_data()
