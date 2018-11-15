@@ -14,7 +14,34 @@ import matplotlib.pyplot as plt
 from collections import deque
 import torch
 import pickle
+import math
 
+class UCB1():
+  def __init__(self, n_arms):
+    self.counts = [0 for col in range(n_arms)]
+    self.values = [0.0 for col in range(n_arms)]
+
+  def select_arm(self):
+    n_arms = len(self.counts)
+    for arm in range(n_arms):
+      if self.counts[arm] == 0:
+        return arm
+
+    ucb_values = [0.0 for arm in range(n_arms)]
+    total_counts = sum(self.counts)
+    for arm in range(n_arms):
+      bonus = math.sqrt((2 * math.log(total_counts)) / float(self.counts[arm]))
+      ucb_values[arm] = self.values[arm] + bonus
+    return ind_max(ucb_values)
+
+  def update(self, chosen_arm, reward):
+    self.counts[chosen_arm] = self.counts[chosen_arm] + 1
+    n = self.counts[chosen_arm]
+
+    value = self.values[chosen_arm]
+    new_value = ((n - 1) / float(n)) * value + (1 / float(n)) * reward
+    self.values[chosen_arm] = new_value
+    return
 
 #################
 # FAKE DATASETS #
@@ -138,7 +165,7 @@ def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
 
     return gradient
 
-def run_adam_optimizer(env, alpha=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-8):	
+def run_adam_optimizer(env, alpha=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-8):
     state = env.reset()
     data = env.get_data()
     episode_done = False
@@ -152,12 +179,12 @@ def run_adam_optimizer(env, alpha=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-8):
         t += 1
         g_t = np.array(get_stoch_gradient(env.dataset, env.theta, env.data, env.grad_batch_size))
         m_t = beta_1*m_t + (1-beta_1)*g_t
-        v_t = beta_2 * v_t + (1-beta_2)*g_t * g_t 
+        v_t = beta_2 * v_t + (1-beta_2)*g_t * g_t
         m_cap = m_t/(1 - (beta_1**t))
         v_cap = v_t/(1 - (beta_2**t))
         action = -(alpha * m_cap) / (np.sqrt(v_cap) + epsilon)
         next_state, reward, done, loss = env.step(action)
-        episode_done = done 
+        episode_done = done
         if t % len(data) == 0:
             print("Reward: " + str(reward))
             print("Done: " + str(done))
@@ -177,10 +204,154 @@ def run_adam_optimizer(env, alpha=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-8):
     # plt.plot(rewards)
     # plt.show()
 
-def run_SGD(env, step_size = 0.01):
+def m_weights(reward_choices, eta):
+    weights = np.exp(eta*reward_choices)
+    return weights/sum(weights)
+
+def m_weights_sample(probs, step_size_choices):
+    return step_size_choices[np.random.choice(len(probs), p=probs)]
+
+def rand_sample_action(env, step_size_choices):
     state = env.reset()
     data = env.get_data()
-    print(env.get_state_dim())
+    # print(env.get_state_dim())
+    episode_done = False
+
+    i = 0
+    rewards = []
+    losses = []
+
+    while episode_done is False:
+        step_size_decision = np.random.choice(step_size_choices)
+        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(i)
+    print(episode_done)
+    return i, np.sum(rewards), losses[-1]
+
+def FTL(env, step_size_choices):
+    rewards_choices_total = np.zeros(len(step_size_choices))
+    state = env.reset()
+    data = env.get_data()
+    episode_done = False
+
+    i = 0
+    rewards = []
+    losses = []
+
+    while episode_done is False:
+        reward_choices = env.get_rewards(step_size_choices)
+        rewards_choices_total += reward_choices
+        if i > 50:
+            step_size_decision = step_size_choices[np.argmax(rewards_choices_total)]
+        else:
+            step_size_decision = np.random.choice(step_size_choices)
+        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(i)
+    print(episode_done)
+    return i, np.sum(rewards), losses[-1]
+
+def run_multiplicative_weights(env, step_size_choices):
+    rewards_choices_total = np.zeros(len(step_size_choices))
+    state = env.reset()
+    data = env.get_data()
+    # print(env.get_state_dim())
+    episode_done = False
+
+    i = 0
+    rewards = []
+    losses = []
+    T = 10
+    eta = np.sqrt(np.log(len(step_size_choices)))/T
+
+    while episode_done is False:
+        if i >= T:
+            T = T*2
+            eta = np.sqrt(np.log(len(step_size_choices)))/T
+
+        probs = m_weights(rewards_choices_total, eta)
+        reward_choices = env.get_rewards(step_size_choices)
+        rewards_choices_total += reward_choices
+        step_size_decision = m_weights_sample(probs, step_size_choices)
+        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(i)
+    print(episode_done)
+    return i, np.sum(rewards), losses[-1], probs
+
+def ind_max(x):
+  m = max(x)
+  return x.index(m)
+def run_UCB(env, step_size_choices):
+    state = env.reset()
+    data = env.get_data()
+    episode_done = False
+    agent = UCB1(len(step_size_choices))
+
+    i = 0
+    rewards = []
+    losses = []
+    while episode_done is False:
+        step_size_decision = agent.select_arm()
+        temp_r = env.get_rewards(step_size_choices)[step_size_decision]
+        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        agent.update(step_size_decision, reward)
+        episode_done = done
+
+        if i % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(i)
+    print(episode_done)
+    return i, np.sum(rewards), losses[-1]
+
+def run_SGD(env, step_size):
+    state = env.reset()
+    data = env.get_data()
+    # print(env.get_state_dim())
     episode_done = False
 
     i = 0
@@ -342,6 +513,23 @@ class LearnedOptimizationEnv:
         # self.state = np.array(self.losses.get_list())
         return self.state
 
+    # Reward 1 for the best choice, reward 0 for everything else
+    def get_rewards(self, actions):
+        rewards = np.zeros(len(actions))
+        max_reward_ind = 0
+        max_reward = -np.inf
+        data = env.get_data()
+        for i in range(len(actions)):
+            temp_theta = self.theta + linear_gradient(self.get_theta(), actions[i], data[np.random.randint(len(data))])
+            losses = self.losses.get_list()
+            r = np.mean(losses) - get_loss(self.dataset, temp_theta, self.data)
+            if r > max_reward:
+                max_reward_ind = i
+                max_reward = r
+
+        rewards[max_reward_ind] = 1
+        return rewards
+
     def step(self, action):
         """
         Step environment when an action is performed and return [next_state, reward, done]
@@ -404,6 +592,17 @@ class LearnedOptimizationEnv:
 # Here we can compare SGD, Adam against learned optimizer
 if __name__ == "__main__":
     env = LearnedOptimizationEnv(1000, 50, 10, 1, 20000, 32, 32, 0, 'nonconvex_medium')
+    print("Random Learning Rate")
+    rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    print("Multiplicative Weights")
+    weights = run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    print("UCB")
+    weights = run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    print("FTL")
+    FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    print("SGD")
+    run_SGD(env, 0.01)
+    print("ADAM")
     run_adam_optimizer(env)
 
     # episode_rewards = []
@@ -421,5 +620,5 @@ if __name__ == "__main__":
     # 	episode_steps_list.append(num_steps)
 
     # 	if i % 100 == 0:
-	   #  	pickle.dump( {'episode_steps' : episode_steps_list, 'episode_rewards' : episode_rewards, 
+	   #  	pickle.dump( {'episode_steps' : episode_steps_list, 'episode_rewards' : episode_rewards,
 	   #  		'episode_losses' : episode_losses}, open( "SGD_stats.p", "wb" ) )
