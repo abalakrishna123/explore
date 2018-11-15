@@ -165,225 +165,6 @@ def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
 
     return gradient
 
-def run_adam_optimizer(env, alpha=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-8):
-    state = env.reset()
-    data = env.get_data()
-    episode_done = False
-
-    rewards = []
-    losses = []
-    m_t = np.zeros(len(env.theta))
-    v_t = np.zeros(len(env.theta))
-    t = 0
-    while episode_done is False:
-        t += 1
-        g_t = np.array(get_stoch_gradient(env.dataset, env.theta, env.data, env.grad_batch_size))
-        m_t = beta_1*m_t + (1-beta_1)*g_t
-        v_t = beta_2 * v_t + (1-beta_2)*g_t * g_t
-        m_cap = m_t/(1 - (beta_1**t))
-        v_cap = v_t/(1 - (beta_2**t))
-        action = -(alpha * m_cap) / (np.sqrt(v_cap) + epsilon)
-        next_state, reward, done, loss = env.step(action)
-        episode_done = done
-        if t % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
-        rewards.append(reward)
-        losses.append(loss)
-
-    print(t)
-    print(episode_done)
-
-    return t, np.sum(rewards), losses[-1]
-
-    # # Only plot results if dim = 1
-    # plot_results(env.get_theta(), data)
-    # plt.plot(losses)
-    # plt.show()
-    # plt.plot(rewards)
-    # plt.show()
-
-def m_weights(reward_choices, eta):
-    weights = np.exp(eta*reward_choices)
-    return weights/sum(weights)
-
-def m_weights_sample(probs, step_size_choices):
-    return step_size_choices[np.random.choice(len(probs), p=probs)]
-
-def rand_sample_action(env, step_size_choices):
-    state = env.reset()
-    data = env.get_data()
-    # print(env.get_state_dim())
-    episode_done = False
-
-    i = 0
-    rewards = []
-    losses = []
-
-    while episode_done is False:
-        step_size_decision = np.random.choice(step_size_choices)
-        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
-        next_state, reward, done, loss = env.step(action)
-        episode_done = done
-
-        if i % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
-            # print("losses: ")
-            # print(env.losses.get_list())
-        i += 1
-        rewards.append(reward)
-        losses.append(loss)
-
-    print(i)
-    print(episode_done)
-    return i, np.sum(rewards), losses[-1]
-
-def FTL(env, step_size_choices):
-    rewards_choices_total = np.zeros(len(step_size_choices))
-    state = env.reset()
-    data = env.get_data()
-    episode_done = False
-
-    i = 0
-    rewards = []
-    losses = []
-
-    while episode_done is False:
-        reward_choices = env.get_rewards(step_size_choices)
-        rewards_choices_total += reward_choices
-        if i > 50:
-            step_size_decision = step_size_choices[np.argmax(rewards_choices_total)]
-        else:
-            step_size_decision = np.random.choice(step_size_choices)
-        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
-        next_state, reward, done, loss = env.step(action)
-        episode_done = done
-
-        if i % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
-            # print("losses: ")
-            # print(env.losses.get_list())
-        i += 1
-        rewards.append(reward)
-        losses.append(loss)
-
-    print(i)
-    print(episode_done)
-    return i, np.sum(rewards), losses[-1]
-
-def run_multiplicative_weights(env, step_size_choices):
-    rewards_choices_total = np.zeros(len(step_size_choices))
-    state = env.reset()
-    data = env.get_data()
-    # print(env.get_state_dim())
-    episode_done = False
-
-    i = 0
-    rewards = []
-    losses = []
-    T = 10
-    eta = np.sqrt(np.log(len(step_size_choices)))/T
-
-    while episode_done is False:
-        if i >= T:
-            T = T*2
-            eta = np.sqrt(np.log(len(step_size_choices)))/T
-
-        probs = m_weights(rewards_choices_total, eta)
-        reward_choices = env.get_rewards(step_size_choices)
-        rewards_choices_total += reward_choices
-        step_size_decision = m_weights_sample(probs, step_size_choices)
-        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
-        next_state, reward, done, loss = env.step(action)
-        episode_done = done
-
-        if i % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
-            # print("losses: ")
-            # print(env.losses.get_list())
-        i += 1
-        rewards.append(reward)
-        losses.append(loss)
-
-    print(i)
-    print(episode_done)
-    return i, np.sum(rewards), losses[-1], probs
-
-def ind_max(x):
-  m = max(x)
-  return x.index(m)
-  
-def run_UCB(env, step_size_choices):
-    state = env.reset()
-    data = env.get_data()
-    episode_done = False
-    agent = UCB1(len(step_size_choices))
-
-    i = 0
-    rewards = []
-    losses = []
-    while episode_done is False:
-        step_size_decision = agent.select_arm()
-        temp_r = env.get_rewards(step_size_choices)[step_size_decision]
-        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
-        next_state, reward, done, loss = env.step(action)
-        agent.update(step_size_decision, reward)
-        episode_done = done
-
-        if i % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
-        i += 1
-        rewards.append(reward)
-        losses.append(loss)
-
-    print(i)
-    print(episode_done)
-    return i, np.sum(rewards), losses[-1]
-
-def run_SGD(env, step_size):
-    state = env.reset()
-    data = env.get_data()
-    # print(env.get_state_dim())
-    episode_done = False
-
-    i = 0
-    rewards = []
-    losses = []
-    while episode_done is False:
-        action = linear_gradient(env.get_theta(), step_size, data[np.random.randint(len(data))])
-        next_state, reward, done, loss = env.step(action)
-        episode_done = done
-
-        if i % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
-            # print("losses: ")
-            # print(env.losses.get_list())
-        i += 1
-        rewards.append(reward)
-        losses.append(loss)
-
-    print(i)
-    print(episode_done)
-    return i, np.sum(rewards), losses[-1]
-
-    # Only plot results if dim = 1
-    # plot_results(env.get_theta(), data)
-    # plt.plot(losses)
-    # plt.show()
-    # plt.plot(rewards)
-    # plt.show()
-
 def get_stoch_linear_gradient(theta, x, y):
     return 2 * x.T.dot(x.dot(theta) - y)
 
@@ -436,7 +217,190 @@ def optimize_linear_SGD(data, eta, loss_thresh, max_epochs):
         epochs += 1
     return [theta, epochs, loss]
 
+#############
+# BASELINES #
+#############
 
+def run_rand_sample_action(env, step_size_choices):
+    state = env.reset()
+    data = env.get_data()
+    # print(env.get_state_dim())
+    episode_done = False
+
+    i = 0
+    rewards = []
+    losses = []
+
+    while episode_done is False:
+        step_size_decision = np.random.choice(step_size_choices)
+        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(i)
+    print(episode_done)
+    return i, np.sum(rewards), losses[-1]
+
+def run_SGD(env, step_size):
+    state = env.reset()
+    data = env.get_data()
+    # print(env.get_state_dim())
+    episode_done = False
+
+    i = 0
+    rewards = []
+    losses = []
+    while episode_done is False:
+        action = linear_gradient(env.get_theta(), step_size, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(i)
+    print(episode_done)
+    return i, np.sum(rewards), losses[-1]
+
+    # Only plot results if dim = 1
+    # plot_results(env.get_theta(), data)
+    # plt.plot(losses)
+    # plt.show()
+    # plt.plot(rewards)
+    # plt.show()
+
+
+def run_FTL(env, step_size_choices):
+    rewards_choices_total = np.zeros(len(step_size_choices))
+    state = env.reset()
+    data = env.get_data()
+    episode_done = False
+
+    i = 0
+    rewards = []
+    losses = []
+
+    while episode_done is False:
+        reward_choices = env.get_rewards(step_size_choices)
+        rewards_choices_total += reward_choices
+        if i > 50:
+            step_size_decision = step_size_choices[np.argmax(rewards_choices_total)]
+        else:
+            step_size_decision = np.random.choice(step_size_choices)
+        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(i)
+    print(episode_done)
+    return i, np.sum(rewards), losses[-1]
+
+def m_weights(reward_choices, eta):
+    weights = np.exp(eta*reward_choices)
+    return weights/sum(weights)
+
+def m_weights_sample(probs, step_size_choices):
+    return step_size_choices[np.random.choice(len(probs), p=probs)]
+
+def run_multiplicative_weights(env, step_size_choices):
+    rewards_choices_total = np.zeros(len(step_size_choices))
+    state = env.reset()
+    data = env.get_data()
+    # print(env.get_state_dim())
+    episode_done = False
+
+    i = 0
+    rewards = []
+    losses = []
+    T = 10
+    eta = np.sqrt(np.log(len(step_size_choices)))/T
+
+    while episode_done is False:
+        if i >= T:
+            T = T*2
+            eta = np.sqrt(np.log(len(step_size_choices)))/T
+
+        probs = m_weights(rewards_choices_total, eta)
+        reward_choices = env.get_rewards(step_size_choices)
+        rewards_choices_total += reward_choices
+        step_size_decision = m_weights_sample(probs, step_size_choices)
+        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(i)
+    print(episode_done)
+    return i, np.sum(rewards), losses[-1], probs
+
+def ind_max(x):
+  m = max(x)
+  return x.index(m)
+
+def run_UCB(env, step_size_choices):
+    state = env.reset()
+    data = env.get_data()
+    episode_done = False
+    agent = UCB1(len(step_size_choices))
+
+    i = 0
+    rewards = []
+    losses = []
+    while episode_done is False:
+        step_size_decision = agent.select_arm()
+        temp_r = env.get_rewards(step_size_choices)[step_size_decision]
+        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        agent.update(step_size_decision, reward)
+        episode_done = done
+
+        if i % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(i)
+    print(episode_done)
+    return i, np.sum(rewards), losses[-1]
 #############
 # UTILITIES #
 #############
@@ -594,13 +558,13 @@ class LearnedOptimizationEnv:
 if __name__ == "__main__":
     env = LearnedOptimizationEnv(1000, 50, 10, 1, 20000, 32, 32, 0, 'nonconvex_medium')
     print("Random Learning Rate")
-    rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    run_rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
     print("Multiplicative Weights")
-    weights = run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
     print("UCB")
-    weights = run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    un_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
     print("FTL")
-    FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
     print("SGD")
     run_SGD(env, 0.01)
     print("ADAM")
