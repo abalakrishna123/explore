@@ -14,9 +14,7 @@ import matplotlib.pyplot as plt
 from collections import deque
 import torch
 import pickle
-# from contextualbandits.online import BootstrappedUCB, BootstrappedTS, SeparateClassifiers,\
-#             EpsilonGreedy, AdaptiveGreedy, ExploreFirst, ActiveExplorer, SoftmaxExplorer
-
+import math
 
 #################
 # FAKE DATASETS #
@@ -294,10 +292,67 @@ def run_multiplicative_weights(env, step_size_choices):
     print(episode_done)
     return i, np.sum(rewards), losses[-1], probs
 
-def run_contextual_bandits(env, step_size_choices):
-    pass
+def ind_max(x):
+  m = max(x)
+  return x.index(m)
 
-def run_SGD(env, step_size = 0.01):
+class UCB1():
+  def __init__(self, n_arms):
+    self.counts = [0 for col in range(n_arms)]
+    self.values = [0.0 for col in range(n_arms)]
+
+  def select_arm(self):
+    n_arms = len(self.counts)
+    for arm in range(n_arms):
+      if self.counts[arm] == 0:
+        return arm
+
+    ucb_values = [0.0 for arm in range(n_arms)]
+    total_counts = sum(self.counts)
+    for arm in range(n_arms):
+      bonus = math.sqrt((2 * math.log(total_counts)) / float(self.counts[arm]))
+      ucb_values[arm] = self.values[arm] + bonus
+    return ind_max(ucb_values)
+
+  def update(self, chosen_arm, reward):
+    self.counts[chosen_arm] = self.counts[chosen_arm] + 1
+    n = self.counts[chosen_arm]
+
+    value = self.values[chosen_arm]
+    new_value = ((n - 1) / float(n)) * value + (1 / float(n)) * reward
+    self.values[chosen_arm] = new_value
+    return
+
+def run_UCB(env, step_size_choices):
+    state = env.reset()
+    data = env.get_data()
+    episode_done = False
+    agent = UCB1(len(step_size_choices))
+
+    i = 0
+    rewards = []
+    losses = []
+    while episode_done is False:
+        step_size_decision = agent.select_arm()
+        temp_r = env.get_rewards(step_size_choices)[step_size_decision]
+        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        agent.update(step_size_decision, reward)
+        episode_done = done
+
+        if i % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(i)
+    print(episode_done)
+    return i, np.sum(rewards), losses[-1]
+
+def run_SGD(env, step_size):
     state = env.reset()
     data = env.get_data()
     # print(env.get_state_dim())
@@ -472,10 +527,6 @@ class LearnedOptimizationEnv:
             temp_theta = self.theta + linear_gradient(self.get_theta(), actions[i], data[np.random.randint(len(data))])
             losses = self.losses.get_list()
             r = np.mean(losses) - get_loss(self.dataset, temp_theta, self.data)
-            # print("ACTION THEN REWARD")
-            # print(actions[i])
-            # print(r)
-            # print("DONE ACTION THEN REWARD")
             if r > max_reward:
                 max_reward_ind = i
                 max_reward = r
@@ -544,18 +595,17 @@ class LearnedOptimizationEnv:
 
 # Here we can compare SGD, Adam against learned optimizer
 if __name__ == "__main__":
-    env = LearnedOptimizationEnv(1000, 50, 10, 1, 20000, 32, 32, 0, 'nonconvex_medium')
+    env = LearnedOptimizationEnv(1000, 50, 10, 0.1, 20000, 32, 32)
     print("Random Learning Rate")
     rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
     print("Multiplicative Weights")
-    weights = run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-    print("WEIGHTS")
-    print(weights[-1])
-    print("ENDWEIGHTS")
-    # print("FTL")
-    # FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    weights = run_multiplicative_weights(env, np.array([0.01, 0.1]))
+    print("UCB")
+    weights = run_UCB(env, np.array([0.01, 0.1]))
+    print("FTL")
+    FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
     print("SGD")
-    run_SGD(env)
+    run_SGD(env, 0.01)
 
     # episode_rewards = []
     # episode_losses = []
