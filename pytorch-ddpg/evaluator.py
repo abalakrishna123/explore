@@ -5,6 +5,17 @@ from scipy.io import savemat
 
 from util import *
 
+def plot(x, y, xlabel, ylabel, hook=lambda plt: None):
+    x = np.arange(x)
+    y = np.array(y)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.plot(x, y)
+    hook(plt)
+    plt.clf()
+    plt.cla()
+    plt.close()
+
 class Evaluator(object):
 
     def __init__(self, num_episodes, interval, save_path='', max_episode_length=None):
@@ -21,6 +32,12 @@ class Evaluator(object):
         observation = None
         reward_result = []
         loss_result = []
+        episode_rewards = []
+        episode_losses = []
+        episode_steps_list = []
+        step = episode = episode_steps = 0
+        episode_reward = 0.
+        episode_loss = 0.
 
         for episode in range(self.num_episodes):
 
@@ -41,25 +58,46 @@ class Evaluator(object):
                 observation, reward, done, loss = env.step(action)
                 if self.max_episode_length and episode_steps >= self.max_episode_length -1:
                     done = True
-                
-                if visualize:
-                    env.render(mode='human')
 
                 # update
                 episode_reward += reward
-                episode_loss += loss
+                episode_loss = loss
                 episode_steps += 1
+                step += 1
 
-            episode_reward = episode_reward/float(episode_steps)
-            episode_loss = episode_loss/float(episode_steps)
-            if debug: prYellow('[Evaluate] #Episode{}: episode_reward:{}'.format(episode,episode_reward))
-            reward_result.append(episode_reward)
-            loss_result.append(episode_loss)
+            episode_rewards.append(episode_reward / float(episode_steps))
+            episode_losses.append(episode_loss)
+            episode_steps_list.append(episode_steps)
 
-        reward_result = np.array(reward_result).reshape(-1,1)
-        loss_result = np.array(loss_result).reshape(-1,1)
-        self.reward_results = np.hstack([self.reward_results, reward_result])
-        self.loss_results = np.hstack([self.loss_results, loss_result])
+            if episode % 10 == 0:
+                def generate_hook(field_name):
+                    def hook(plt):
+                        plt.savefig('{}/episode_{}'.format(self.save_path, field_name) + '_test.png')
+                        savemat('{}/episode_{}'.format(self.save_path, field_name) + '_test.mat', {field_name: episode_rewards})
+                    return hook
+                plot(len(episode_rewards), episode_rewards, 'Episode', 'Average Reward', generate_hook('reward'))
+                plot(len(episode_losses), episode_losses, 'Episode', 'Average Loss', generate_hook('loss'))
+                plot(len(episode_steps_list), episode_steps_list, 'Episode', 'Total Steps', generate_hook('steps'))
+
+            if debug:
+                prLightPurple('#{}: len:{} episode_reward:{} episode_loss:{} steps:{} theta:{}'.format(
+                    episode,
+                    episode_steps,
+                    episode_reward / float(episode_steps),
+                    episode_loss,
+                    episode_steps,
+                    str(env.theta)))
+
+        #     episode_reward = episode_reward/float(episode_steps)
+        #     episode_loss = episode_loss/float(episode_steps)
+        #     if debug: prYellow('[Evaluate] #Episode{}: episode_reward:{}'.format(episode,episode_reward))
+        #     reward_result.append(episode_reward)
+        #     loss_result.append(episode_loss)
+
+        # reward_result = np.array(reward_result).reshape(-1,1)
+        # loss_result = np.array(loss_result).reshape(-1,1)
+        # self.reward_results = np.hstack([self.reward_results, reward_result])
+        # self.loss_results = np.hstack([self.loss_results, loss_result])
 
         if save:
             self.save_reward_results('{}/validate_reward'.format(self.save_path))

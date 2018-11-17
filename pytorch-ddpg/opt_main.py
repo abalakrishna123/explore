@@ -86,7 +86,7 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
         #         prYellow('[Evaluate] Step_{:07d}: mean_loss:{}'.format(step, validate_loss))
 
         # [optional] save intermediate model
-        if step % int(num_iterations / 3) == 0:
+        if episode % 100 == 0:
             agent.save_model(output)
 
         # if step % len(env.get_data()) == 0:
@@ -153,7 +153,7 @@ def test(num_episodes, agent, env, evaluate, model_path, visualize=True, debug=F
     agent.load_weights(model_path)
     agent.is_training = False
     agent.eval()
-    policy = lambda x: agent.select_action(x, decay_epsilon=False)
+    policy = lambda x: agent.select_action(x, env.get_theta(), env.get_data(), decay_epsilon=False)
 
     for i in range(num_episodes):
         validate_reward = evaluate(env, policy, debug=debug, visualize=visualize, save=False)
@@ -234,7 +234,7 @@ if __name__ == "__main__":
 
     elif args.mode == 'test':
         test(args.validate_episodes, agent, env, evaluate, args.resume,
-             visualize=True, debug=args.debug)
+             visualize=False, debug=args.debug)
 
     else:
         raise RuntimeError('undefined mode {}'.format(args.mode))
