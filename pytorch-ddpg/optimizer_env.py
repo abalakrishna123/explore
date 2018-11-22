@@ -9,7 +9,8 @@ Data and losses are organized into the following order:
 - CIFAR-10 (coming soon)
 """
 
-import numpy as np
+import autograd.numpy as np
+from autograd import elementwise_grad
 import matplotlib.pyplot as plt
 from collections import deque
 import torch
@@ -55,6 +56,8 @@ def get_data(dataset, num_points, dim, noise_std):
         return get_mnist_data(num_points, dim, noise_std)
     elif dataset.lower() in ('nonconvex_easy', 'nonconvex_medium', 'nonconvex_hard'):
         return get_nonconvex_easy_data(num_points, dim, noise_std)
+    elif dataset.lower() == 'beale':
+        return []
 
 
 # First logical test would be to make sure that LearnedOptimizationEnv
@@ -87,6 +90,32 @@ def get_nonconvex_easy_data(num_points, dim, noise_std):
     return generate_linear_data(num_points, dim, noise_std)
 
 
+class BealeOptimization(object):
+    def __init__(self):
+        self.f  = lambda x, y: (1.5 - x + x*y)**2 + (2.25 - x + x*y**2)**2 + (2.625 - x + x*y**3)**2
+        self.fdx1 = elementwise_grad(self.f, argnum=0)
+        self.fdx2 = elementwise_grad(self.f, argnum=1)
+
+        xmin, xmax, xstep = -4.5, 4.5, .2
+        ymin, ymax, ystep = -4.5, 4.5, .2
+        self.x, self.y = np.meshgrid(np.arange(xmin, xmax + xstep, xstep), np.arange(ymin, ymax + ystep, ystep))
+        self.z = self.f(self.x, self.y)
+        self.fdx1_solved = self.fdx1(self.x, self.y)
+        self.fdx2_solved = self.fdx2(self.x, self.y)
+        
+        self.min_x = np.array([3., .5])  # global minimum
+        self.min_y = self.f(*self.min_x)
+        
+    def get_loss(self, x1, x2):
+        return (self.f(x1, x2) - self.min_y) ** 2
+        
+    def get_gradient(self, x1, x2):
+        return np.array([self.fdx1(x1, x2), self.fdx2(x1, x2)])
+    
+
+beale_opt_env = BealeOptimization()
+
+
 ########
 # LOSS #
 ########
@@ -103,6 +132,11 @@ def get_loss(dataset, theta, data):
         return get_nonconvex_medium_loss(theta, data)
     elif dataset.lower() == 'nonconvex_hard':
         return get_nonconvex_hard_loss(theta, data)
+    elif dataset.lower() == 'beale':
+        assert len(theta) == 2
+        return beale_opt_env.get_loss(theta[0], theta[1])
+    else:
+        raise NotImplementedError
 
 
 def get_linear_loss(theta, data):
@@ -140,11 +174,13 @@ def get_nonconvex_hard_loss(theta, data):
 
 
 def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
-    X, Y = data[:, :-1], data[:, -1]
-
-    # select batch
-    indices = np.random.randint(len(X), size=batch_size)
-    x, y = X[indices], Y[indices]
+    if dataset not in ['beale']:
+        X, Y = data[:, :-1], data[:, -1]
+        # select batch
+        indices = np.random.randint(len(X), size=batch_size)
+        x, y = X[indices], Y[indices]
+    else:
+        x, y = None, None
 
     if dataset.lower() == 'simple':
         gradient = get_stoch_linear_gradient(theta, x, y)
@@ -156,6 +192,10 @@ def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
         gradient = get_nonconvex_medium_gradient(theta, x, y)
     elif dataset.lower() == 'nonconvex_hard':
         gradient = get_nonconvex_hard_gradient(theta, x, y)
+    elif dataset.lower() == 'beale':
+        assert len(theta) == 2
+        gradient = beale_opt_env.get_gradient(theta[0], theta[1])
+        # return gradient  # no need to normalize
     else:
         raise UserWarning('Invalid dataset: {}'.format(dataset))
 
@@ -443,6 +483,9 @@ class Buffer(object):
 class LearnedOptimizationEnv:
     def __init__(self, num_points, grad_batch_size, dim, loss_thresh, max_steps, losses_hist_length,
                  grads_hist_length, skip=0, dataset='simple'):
+        if dataset.lower() == 'beale':
+            assert dim == 1
+        
         # Get data + initialize optimization parameters
         self.dataset = dataset
         self.dim = dim
@@ -512,6 +555,7 @@ class LearnedOptimizationEnv:
 
         An action is a vector of the same dimension as theta
         """
+        orig_theta = self.theta
         # --- Update theta based on action ---
         self.theta = self.theta + action
         # --- Determine whether the episode is done ---
