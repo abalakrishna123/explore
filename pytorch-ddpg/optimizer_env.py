@@ -241,6 +241,14 @@ def linear_gradient(theta, eta, data_i):
     return -eta * (grad/np.linalg.norm(grad))
 
 
+# For SGD with mom
+def linear_gradient_mom(theta, eta, data_i):
+    X_i = data_i[:-1]
+    y_i = data_i[-1]
+    grad = (np.dot(X_i, theta) - y_i) * X_i
+    return eta * grad
+
+
 # Run SGD Optimization
 def optimize_linear_SGD(data, eta, loss_thresh, max_epochs):
     theta = np.random.random(len(data[0]) - 1)
@@ -325,6 +333,44 @@ def run_SGD(env, step_size):
     # plt.show()
     # plt.plot(rewards)
     # plt.show()
+
+def run_SGD_mom(env, eta, gamma):
+    state = env.reset()
+    data = env.get_data()
+    # print(env.get_state_dim())
+    episode_done = False
+    
+    v = 0
+    i = 0
+    rewards = []
+    losses = []
+    while episode_done is False:
+        scaled_grad = linear_gradient_mom(env.get_theta(), eta, data[np.random.randint(len(data))])
+        v = gamma * v + scaled_grad
+        action = -v
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(i)
+    print(episode_done)
+    return i, np.sum(rewards), losses[-1]
+
+    # Only plot results if dim = 1
+    # plot_results(env.get_theta(), data)
+    # plt.plot(losses)
+    # plt.show()
+    # plt.plot(rewards)
+    # plt.show() 
 
 
 def run_FTL(env, step_size_choices):
@@ -601,18 +647,16 @@ class LearnedOptimizationEnv:
 # Here we can compare SGD, Adam against learned optimizer
 if __name__ == "__main__":
     env = LearnedOptimizationEnv(1000, 50, 10, 1, 20000, 32, 32, 0, 'nonconvex_medium')
-    print("Random Learning Rate")
-    run_rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-    print("Multiplicative Weights")
-    run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-    print("UCB")
-    un_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-    print("FTL")
-    run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    #print("Random Learning Rate")
+    #run_rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    #print("Multiplicative Weights")
+    #run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    #print("UCB")
+    #run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    #print("FTL")
+    #run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
     print("SGD")
-    run_SGD(env, 0.01)
-    print("ADAM")
-    run_adam_optimizer(env)
+    run_SGD_mom(env, 0.01, 0.7)
 
     # episode_rewards = []
     # episode_losses = []
