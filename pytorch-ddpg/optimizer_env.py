@@ -281,9 +281,9 @@ def run_rand_sample_action(env, step_size_choices):
         episode_done = done
 
         if i % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
+            print("Reward: " + str(reward), end="\r")
+            print("Done: " + str(done), end="\r")
+            print("Loss: " + str(loss), end="\r")
             # print("losses: ")
             # print(env.losses.get_list())
         i += 1
@@ -309,9 +309,9 @@ def run_SGD(env, step_size):
         episode_done = done
 
         if i % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
+            print("Reward: " + str(reward), end="\r")
+            print("Done: " + str(done), end="\r")
+            print("Loss: " + str(loss), end="\r")
             # print("losses: ")
             # print(env.losses.get_list())
         i += 1
@@ -352,9 +352,9 @@ def run_FTL(env, step_size_choices):
         episode_done = done
 
         if i % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
+            print("Reward: " + str(reward), end="\r")
+            print("Done: " + str(done), end="\r")
+            print("Loss: " + str(loss), end="\r")
             # print("losses: ")
             # print(env.losses.get_list())
         i += 1
@@ -399,9 +399,9 @@ def run_multiplicative_weights(env, step_size_choices):
         episode_done = done
 
         if i % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
+            print("Reward: " + str(reward), end="\r")
+            print("Done: " + str(done), end="\r")
+            print("Loss: " + str(loss), end="\r")
             # print("losses: ")
             # print(env.losses.get_list())
         i += 1
@@ -434,9 +434,9 @@ def run_UCB(env, step_size_choices):
         episode_done = done
 
         if i % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
+            print("Reward: " + str(reward), end="\r")
+            print("Done: " + str(done), end="\r")
+            print("Loss: " + str(loss), end="\r")
         i += 1
         rewards.append(reward)
         losses.append(loss)
@@ -526,7 +526,7 @@ class LearnedOptimizationEnv:
         rewards = np.zeros(len(actions))
         max_reward_ind = 0
         max_reward = -np.inf
-        data = env.get_data()
+        data = self.get_data()
         for i in range(len(actions)):
             temp_theta = self.theta + linear_gradient(self.get_theta(), actions[i], data[np.random.randint(len(data))])
             losses = self.losses.get_list()

@@ -237,5 +237,17 @@ if __name__ == "__main__":
         test(args.validate_episodes, agent, env, evaluate, args.resume,
              visualize=False, debug=args.debug)
 
+    elif args.mode == 'custom':
+        print("Multiplicative Weights")
+        run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+        print("UCB")
+        run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+        print("FTL")
+        run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+        # print("SGD")
+        # run_SGD(env, 0.01)
+        # print("ADAM")
+        # run_adam_optimizer(env)
+
     else:
         raise RuntimeError('undefined mode {}'.format(args.mode))
