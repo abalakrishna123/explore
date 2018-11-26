@@ -9,7 +9,8 @@ Data and losses are organized into the following order:
 - CIFAR-10 (coming soon)
 """
 
-import numpy as np
+import autograd.numpy as np
+from autograd import elementwise_grad
 import matplotlib.pyplot as plt
 from collections import deque
 from envs.rosenbrock import Rosenbrock
@@ -62,7 +63,8 @@ def get_data(dataset, num_points, dim, noise_std):
         return get_nonconvex_easy_data(num_points, dim, noise_std)
     elif dataset in envs:
         return get_custom_env_data(num_points, dim, noise_std, dataset)
-
+    elif dataset.lower() == 'beale':
+        return []
 
 # First logical test would be to make sure that LearnedOptimizationEnv
 # works when just use SGD as action, then test DDPG, should be easy
@@ -94,6 +96,7 @@ def get_nonconvex_easy_data(num_points, dim, noise_std):
     return generate_linear_data(num_points, dim, noise_std)
 
 
+
 def get_custom_env_data(num_points, dim, noise_std, dataset):
     """return nxd"""
     # assert dim == 1
@@ -105,6 +108,31 @@ def get_custom_env_data(num_points, dim, noise_std, dataset):
     coords = np.random.random((num_points, 2))
     energy = env.getEnergy(coords.T, (w, b))[:, None]  # NOTE: third-party code takes 2xn
     return np.concatenate((coords, energy), axis=1)
+
+class BealeOptimization(object):
+    def __init__(self):
+        self.f  = lambda x, y: (1.5 - x + x*y)**2 + (2.25 - x + x*y**2)**2 + (2.625 - x + x*y**3)**2
+        self.fdx1 = elementwise_grad(self.f, argnum=0)
+        self.fdx2 = elementwise_grad(self.f, argnum=1)
+
+        xmin, xmax, xstep = -4.5, 4.5, .2
+        ymin, ymax, ystep = -4.5, 4.5, .2
+        self.x, self.y = np.meshgrid(np.arange(xmin, xmax + xstep, xstep), np.arange(ymin, ymax + ystep, ystep))
+        self.z = self.f(self.x, self.y)
+        self.fdx1_solved = self.fdx1(self.x, self.y)
+        self.fdx2_solved = self.fdx2(self.x, self.y)
+
+        self.min_x = np.array([3., .5])  # global minimum
+        self.min_y = self.f(*self.min_x)
+
+    def get_loss(self, x1, x2):
+        return (self.f(x1, x2) - self.min_y) ** 2
+
+    def get_gradient(self, x1, x2):
+        return np.array([self.fdx1(x1, x2), self.fdx2(x1, x2)])
+
+
+beale_opt_env = BealeOptimization()
 
 
 ########
@@ -125,6 +153,11 @@ def get_loss(dataset, theta, data):
         return get_nonconvex_hard_loss(theta, data)
     elif dataset in envs:
         return get_custom_env_loss(dataset, theta, data)
+    elif dataset.lower() == 'beale':
+        assert len(theta) == 2
+        return beale_opt_env.get_loss(theta[0], theta[1])
+    else:
+        raise NotImplementedError
 
 
 def get_linear_loss(theta, data):
@@ -171,11 +204,13 @@ def get_custom_env_loss(dataset, theta, data):
 
 
 def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
-    X, Y = data[:, :-1], data[:, -1]
-
-    # select batch
-    indices = np.random.randint(len(X), size=batch_size)
-    x, y = X[indices], Y[indices]
+    if dataset not in ['beale']:
+        X, Y = data[:, :-1], data[:, -1]
+        # select batch
+        indices = np.random.randint(len(X), size=batch_size)
+        x, y = X[indices], Y[indices]
+    else:
+        x, y = None, None
 
     if dataset.lower() == 'simple':
         gradient = get_stoch_linear_gradient(theta, x, y)
@@ -189,6 +224,10 @@ def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
         gradient = get_nonconvex_hard_gradient(theta, x, y)
     elif dataset in envs:
         gradient = get_custom_env_gradient(dataset, theta, x, y)
+    elif dataset.lower() == 'beale':
+        assert len(theta) == 2
+        gradient = beale_opt_env.get_gradient(theta[0], theta[1])
+        # return gradient  # no need to normalize
     else:
         raise UserWarning('Invalid dataset: {}'.format(dataset))
 
@@ -242,6 +281,14 @@ def linear_gradient(theta, eta, data_i):
     y_i = data_i[-1]
     grad = (np.dot(X_i, theta) - y_i) * X_i
     return -eta * (grad/np.linalg.norm(grad))
+
+
+# For SGD with mom
+def linear_gradient_mom(theta, eta, data_i):
+    X_i = data_i[:-1]
+    y_i = data_i[-1]
+    grad = (np.dot(X_i, theta) - y_i) * X_i
+    return eta * grad
 
 
 # Run SGD Optimization
@@ -312,6 +359,44 @@ def run_SGD(env, step_size):
             print("Reward: " + str(reward), end="\r")
             print("Done: " + str(done), end="\r")
             print("Loss: " + str(loss), end="\r")
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    print(i)
+    print(episode_done)
+    return i, np.sum(rewards), losses[-1]
+
+    # Only plot results if dim = 1
+    # plot_results(env.get_theta(), data)
+    # plt.plot(losses)
+    # plt.show()
+    # plt.plot(rewards)
+    # plt.show()
+
+def run_SGD_mom(env, eta, gamma):
+    state = env.reset()
+    data = env.get_data()
+    # print(env.get_state_dim())
+    episode_done = False
+
+    v = 0
+    i = 0
+    rewards = []
+    losses = []
+    while episode_done is False:
+        scaled_grad = linear_gradient_mom(env.get_theta(), eta, data[np.random.randint(len(data))])
+        v = gamma * v + scaled_grad
+        action = -v
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % len(data) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
             # print("losses: ")
             # print(env.losses.get_list())
         i += 1
@@ -486,6 +571,9 @@ class Buffer(object):
 class LearnedOptimizationEnv:
     def __init__(self, num_points, grad_batch_size, dim, loss_thresh, max_steps, losses_hist_length,
                  grads_hist_length, skip=0, dataset='simple'):
+        if dataset.lower() == 'beale':
+            assert dim == 1
+
         # Get data + initialize optimization parameters
         self.dataset = dataset
         self.dim = dim
@@ -555,6 +643,7 @@ class LearnedOptimizationEnv:
 
         An action is a vector of the same dimension as theta
         """
+        orig_theta = self.theta
         # --- Update theta based on action ---
         self.theta = self.theta + action
         # --- Determine whether the episode is done ---
@@ -600,18 +689,16 @@ class LearnedOptimizationEnv:
 # Here we can compare SGD, Adam against learned optimizer
 if __name__ == "__main__":
     env = LearnedOptimizationEnv(1000, 50, 10, 1, 20000, 32, 32, 0, 'nonconvex_medium')
-    print("Random Learning Rate")
-    run_rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-    print("Multiplicative Weights")
-    run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-    print("UCB")
-    un_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-    print("FTL")
-    run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    #print("Random Learning Rate")
+    #run_rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    #print("Multiplicative Weights")
+    #run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    #print("UCB")
+    #run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    #print("FTL")
+    #run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
     print("SGD")
-    run_SGD(env, 0.01)
-    print("ADAM")
-    run_adam_optimizer(env)
+    run_SGD_mom(env, 0.01, 0.7)
 
     # episode_rewards = []
     # episode_losses = []
