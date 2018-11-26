@@ -12,9 +12,14 @@ Data and losses are organized into the following order:
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import deque
+from envs.rosenbrock import Rosenbrock
 import torch
 import pickle
 import math
+
+envs = {
+    'rosenbrock': Rosenbrock
+}
 
 class UCB1():
   def __init__(self, n_arms):
@@ -55,6 +60,8 @@ def get_data(dataset, num_points, dim, noise_std):
         return get_mnist_data(num_points, dim, noise_std)
     elif dataset.lower() in ('nonconvex_easy', 'nonconvex_medium', 'nonconvex_hard'):
         return get_nonconvex_easy_data(num_points, dim, noise_std)
+    elif dataset in envs:
+        return get_custom_env_data(num_points, dim, noise_std, dataset)
 
 
 # First logical test would be to make sure that LearnedOptimizationEnv
@@ -87,6 +94,19 @@ def get_nonconvex_easy_data(num_points, dim, noise_std):
     return generate_linear_data(num_points, dim, noise_std)
 
 
+def get_custom_env_data(num_points, dim, noise_std, dataset):
+    """return nxd"""
+    # assert dim == 1
+    Env = envs[dataset]
+    env = Env()
+
+    w = 100 + (np.random.random() * 10)
+    b = 1 + np.random.random()
+    coords = np.random.random((num_points, 2))
+    energy = env.getEnergy(coords.T, (w, b))[:, None]  # NOTE: third-party code takes 2xn
+    return np.concatenate((coords, energy), axis=1)
+
+
 ########
 # LOSS #
 ########
@@ -103,6 +123,8 @@ def get_loss(dataset, theta, data):
         return get_nonconvex_medium_loss(theta, data)
     elif dataset.lower() == 'nonconvex_hard':
         return get_nonconvex_hard_loss(theta, data)
+    elif dataset in envs:
+        return get_custom_env_loss(dataset, theta, data)
 
 
 def get_linear_loss(theta, data):
@@ -134,6 +156,15 @@ def get_nonconvex_hard_loss(theta, data):
     return np.linalg.norm(np.sin(X.dot(theta) - y)) / float(len(X))
 
 
+def get_custom_env_loss(dataset, theta, data):
+    Env = envs[dataset]
+    env = Env()
+
+    coords, y = data[:, :2], data[:, -1]
+    yhat = env.getEnergy(coords.T, theta)
+    return np.linalg.norm(yhat - y)
+
+
 ############
 # GRADIENT #
 ############
@@ -156,6 +187,8 @@ def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
         gradient = get_nonconvex_medium_gradient(theta, x, y)
     elif dataset.lower() == 'nonconvex_hard':
         gradient = get_nonconvex_hard_gradient(theta, x, y)
+    elif dataset in envs:
+        gradient = get_custom_env_gradient(dataset, theta, x, y)
     else:
         raise UserWarning('Invalid dataset: {}'.format(dataset))
 
@@ -181,7 +214,17 @@ def get_nonconvex_medium_gradient(theta, x, y):
 
 
 def get_nonconvex_hard_gradient(theta, x, y):
-    pass
+    X = data[:, :-1]
+    Y = data[:, -1]
+
+
+def get_custom_env_gradient(dataset, theta, x, y):
+    Env = envs[dataset]
+    env = Env()
+
+    yhat, gradient = env.getEnergyGradient(x.T, theta)
+    gradient = gradient.dot(yhat - y)
+    return gradient
 
 
 # Some other gradients?

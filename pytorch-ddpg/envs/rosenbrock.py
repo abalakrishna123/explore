@@ -1,22 +1,27 @@
 import numpy as np
 from numpy import exp, sqrt, cos, pi, sin
 
-from base_function import BaseFunction
+from .base_function import BaseFunction
 
 class Rosenbrock(BaseFunction):
     target_E = 0.
     target_coords = np.array([1., 1.])
     xmin = np.array([-10.,-10.])
     xmax = np.array([10.,10.])
-    def getEnergy(self, coords):
-        x, y = coords
-        return 100. * (y - x**2)**2 + (x-1)**2
 
-    def getEnergyGradient(self, coords):
-        E = self.getEnergy(coords)
+    def getEnergy(self, coords, theta):
         x, y = coords
-        dx = -400. * (y - x**2) * x + 2. * (x-1)
-        dy = 200. * (y - x**2)
+        w, b = theta
+        return w * (y - x**2)**2 + (x-b)**2
+
+    def getEnergyGradient(self, coords, theta):
+        E = self.getEnergy(coords, theta)
+
+        x, y = coords
+        w, b = theta
+
+        dx = -4. * w * (y - x**2) * x + 2. * (x-b)
+        dy = 2. * w * (y - x**2)
         return E, np.array([dx, dy])
 
 
