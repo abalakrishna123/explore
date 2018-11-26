@@ -446,6 +446,7 @@ def run_FTL(env, step_size_choices):
         rewards.append(reward)
         losses.append(loss)
 
+    np.save(env.get_theta(), '/tmp-ftl/theta.npy')
     print(i)
     print(episode_done)
     return i, np.sum(rewards), losses[-1]
@@ -493,6 +494,7 @@ def run_multiplicative_weights(env, step_size_choices):
         rewards.append(reward)
         losses.append(loss)
 
+    np.save(env.get_theta(), '/tmp-mw/theta.npy')
     print(i)
     print(episode_done)
     return i, np.sum(rewards), losses[-1], probs
@@ -528,6 +530,7 @@ def run_UCB(env, step_size_choices):
 
     print(i)
     print(episode_done)
+    agent.save_model('./tmp-ucb')
     return i, np.sum(rewards), losses[-1]
 #############
 # UTILITIES #
