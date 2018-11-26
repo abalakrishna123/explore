@@ -17,6 +17,7 @@ from envs.rosenbrock import Rosenbrock
 import torch
 import pickle
 import math
+import os
 
 envs = {
     'rosenbrock': Rosenbrock
@@ -446,7 +447,8 @@ def run_FTL(env, step_size_choices):
         rewards.append(reward)
         losses.append(loss)
 
-    np.save(env.get_theta(), '/tmp-ftl/theta.npy')
+    os.makedirs('./tmp-ftl/', exist_ok=True)
+    np.save('./tmp-ftl/theta.npy', env.get_theta())
     print(i)
     print(episode_done)
     return i, np.sum(rewards), losses[-1]
@@ -494,7 +496,8 @@ def run_multiplicative_weights(env, step_size_choices):
         rewards.append(reward)
         losses.append(loss)
 
-    np.save(env.get_theta(), '/tmp-mw/theta.npy')
+    os.makedirs('./tmp-mw/', exist_ok=True)
+    np.save('./tmp-mw/theta.npy', env.get_theta())
     print(i)
     print(episode_done)
     return i, np.sum(rewards), losses[-1], probs
@@ -530,7 +533,9 @@ def run_UCB(env, step_size_choices):
 
     print(i)
     print(episode_done)
-    agent.save_model('./tmp-ucb')
+    os.makedirs('./tmp-ucb/', exist_ok=True)
+    np.save('./tmp-ucb/values.npy', agent.values)
+    np.save('./tmp-ucb/counts.npy', agent.counts)
     return i, np.sum(rewards), losses[-1]
 #############
 # UTILITIES #
