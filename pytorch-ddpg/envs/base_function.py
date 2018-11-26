@@ -1,17 +1,16 @@
 import numpy as np
 
-from pygmin.potentials import BasePotential
 
-class BaseFunction(BasePotential):
+class BaseFunction:
     pass
 
     def f(self, x):
         return self.getEnergy(x)
-    
+
     def fg(self, x):
         return self.getEnergyGradient(x)
-    
-    
+
+
     def get_random_configuration(self, eps=1e-3):
         xmin, xmax = self.xmin, self.xmax
         x = np.random.uniform(xmin[0] + eps, xmax[0] - eps)
@@ -25,7 +24,7 @@ def makeplot2d(f, nx=100, xmin=None, xmax=None, zlim=None):
     from matplotlib import cm
     import matplotlib.pyplot as plt
     import numpy as np
-    
+
     ny = nx
     if xmin is None:
         xmin = f.xmin[:2]
@@ -41,18 +40,18 @@ def makeplot2d(f, nx=100, xmin=None, xmax=None, zlim=None):
         for j in range(y.size):
             xy = np.array([X[i,j], Y[i,j]])
             Z[i,j] = f.getEnergy(xy)
-    
+
     fig = plt.figure()
     ax = fig.gca(projection='3d')
     surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm,
         linewidth=0, antialiased=False)
-    
+
     if zlim is not None:
         ax.set_zlim(zlim)
 
 #    ax.zaxis.set_major_locator(LinearLocator(10))
 #    ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
-    
+
     fig.colorbar(surf, shrink=0.5, aspect=5)
-    
+
     plt.show()
