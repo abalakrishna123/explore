@@ -616,7 +616,8 @@ class LearnedOptimizationEnv:
         max_reward = -np.inf
         data = self.get_data()
         for i in range(len(actions)):
-            temp_theta = self.theta + linear_gradient(self.get_theta(), actions[i], data[np.random.randint(len(data))])
+            temp_theta = self.theta + get_stoch_gradient(self.dataset, self.get_theta(), data, batch_size=1, eta=1)
+            # temp_theta = self.theta + linear_gradient(self.get_theta(), actions[i], data[np.random.randint(len(data))])
             losses = self.losses.get_list()
             r = np.mean(losses) - get_loss(self.dataset, temp_theta, self.data)
             if r > max_reward:
