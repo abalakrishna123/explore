@@ -232,7 +232,7 @@ def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
         raise UserWarning('Invalid dataset: {}'.format(dataset))
 
     # normalize gradient
-    gradient = -eta * gradient / float(batch_size)
+    gradient = -eta * gradient / (np.linalg.norm(gradient) * float(batch_size))
     gradient = gradient.tolist()
 
     return gradient
@@ -323,7 +323,8 @@ def run_rand_sample_action(env, step_size_choices):
 
     while episode_done is False:
         step_size_decision = np.random.choice(step_size_choices)
-        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        action = np.array(get_stoch_gradient(env.dataset, env.get_theta(), data, batch_size=1, eta=step_size_decision))
+        # action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
         next_state, reward, done, loss = env.step(action)
         episode_done = done
 
@@ -351,7 +352,8 @@ def run_SGD(env, step_size):
     rewards = []
     losses = []
     while episode_done is False:
-        action = linear_gradient(env.get_theta(), step_size, data[np.random.randint(len(data))])
+        action = np.array(get_stoch_gradient(env.dataset, env.get_theta(), data, batch_size=1, eta=step_size))
+        # action = linear_gradient(env.get_theta(), step_size, data[np.random.randint(len(data))])
         next_state, reward, done, loss = env.step(action)
         episode_done = done
 
@@ -387,7 +389,8 @@ def run_SGD_mom(env, eta, gamma):
     rewards = []
     losses = []
     while episode_done is False:
-        scaled_grad = linear_gradient_mom(env.get_theta(), eta, data[np.random.randint(len(data))])
+        scaled_grad = -np.array(get_stoch_gradient(env.dataset, env.get_theta(), data, batch_size=1, eta=eta))
+        # scaled_grad = linear_gradient_mom(env.get_theta(), eta, data[np.random.randint(len(data))])
         v = gamma * v + scaled_grad
         action = -v
         next_state, reward, done, loss = env.step(action)
@@ -432,7 +435,8 @@ def run_FTL(env, step_size_choices):
             step_size_decision = step_size_choices[np.argmax(rewards_choices_total)]
         else:
             step_size_decision = np.random.choice(step_size_choices)
-        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        action = np.array(get_stoch_gradient(env.dataset, env.get_theta(), data, batch_size=1, eta=step_size_decision))
+        # action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
         next_state, reward, done, loss = env.step(action)
         episode_done = done
 
@@ -479,7 +483,8 @@ def run_multiplicative_weights(env, step_size_choices):
         reward_choices = env.get_rewards(step_size_choices)
         rewards_choices_total += reward_choices
         step_size_decision = m_weights_sample(probs, step_size_choices)
-        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        action = np.array(get_stoch_gradient(env.dataset, env.get_theta(), data, batch_size=1, eta=step_size_decision))
+        # action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
         next_state, reward, done, loss = env.step(action)
         episode_done = done
 
@@ -513,7 +518,8 @@ def run_UCB(env, step_size_choices):
     while episode_done is False:
         step_size_decision = agent.select_arm()
         temp_r = env.get_rewards(step_size_choices)[step_size_decision]
-        action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        action = np.array(get_stoch_gradient(env.dataset, env.get_theta(), data, batch_size=1, eta=step_size_decision))
+        # action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
         next_state, reward, done, loss = env.step(action)
         agent.update(step_size_decision, reward)
         episode_done = done
@@ -690,14 +696,14 @@ class LearnedOptimizationEnv:
 # Here we can compare SGD, Adam against learned optimizer
 if __name__ == "__main__":
     env = LearnedOptimizationEnv(1000, 50, 10, 1, 20000, 32, 32, 0, 'nonconvex_medium')
-    #print("Random Learning Rate")
-    #run_rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-    #print("Multiplicative Weights")
-    #run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-    #print("UCB")
-    #run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-    #print("FTL")
-    #run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    print("Random Learning Rate")
+    run_rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    print("Multiplicative Weights")
+    run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    print("UCB")
+    run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    print("FTL")
+    run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
     print("SGD")
     run_SGD_mom(env, 0.01, 0.7)
 
