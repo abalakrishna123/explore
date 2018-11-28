@@ -24,20 +24,22 @@ import os
 # NONCONVEX ENVS #
 ##################
 
-class BealeOptimization(object):
-    def __init__(self):
-        self.f  = lambda x, y: (1.5 - x + x*y)**2 + (2.25 - x + x*y**2)**2 + (2.625 - x + x*y**3)**2
+
+class Optimization:
+
+    def __init__(self, f, optimum, xrange, yrange):
+        self.f  = f
         self.fdx1 = elementwise_grad(self.f, argnum=0)
         self.fdx2 = elementwise_grad(self.f, argnum=1)
 
-        xmin, xmax, xstep = -4.5, 4.5, .2
-        ymin, ymax, ystep = -4.5, 4.5, .2
+        xmin, xmax, xstep = xrange
+        ymin, ymax, ystep = yrange
         self.x, self.y = np.meshgrid(np.arange(xmin, xmax + xstep, xstep), np.arange(ymin, ymax + ystep, ystep))
         self.z = self.f(self.x, self.y)
         self.fdx1_solved = self.fdx1(self.x, self.y)
         self.fdx2_solved = self.fdx2(self.x, self.y)
 
-        self.min_x = np.array([3., .5])  # global minimum
+        self.min_x = np.array(optimum)  # global minimum
         self.min_y = self.f(*self.min_x)
 
     def get_loss(self, x1, x2):
@@ -47,54 +49,63 @@ class BealeOptimization(object):
         return np.array([self.fdx1(x1, x2), self.fdx2(x1, x2)])
 
 
-class GoldsteinPriceOptimization(object):
+class Beale(Optimization):
+
     def __init__(self):
-        self.f  = lambda x, y: (1 + (x + y + 1) ** 2. * (19 - 14*x + 3*x**2. - 14*y + 6*x*y + 3*y**2.)) * \
-            (30 + (2*x - 3*y)**2. * (18 - 32*x + 12*x**2. + 48*y - 36*x*y + 27*y**2.))
-        self.fdx1 = elementwise_grad(self.f, argnum=0)
-        self.fdx2 = elementwise_grad(self.f, argnum=1)
+        super(Beale, self).__init__(
+            f=lambda x, y: (1.5 - x + x*y)**2 + (2.25 - x + x*y**2)**2 + (2.625 - x + x*y**3)**2,
+            optimum=[3., .5],
+            xrange=(-4.5, 4.5, .2),
+            yrange=(-4.5, 4.5, .2),
+        )
 
-        xmin, xmax, xstep = -2, 2, .1
-        ymin, ymax, ystep = -2, 2, .1
-        self.x, self.y = np.meshgrid(np.arange(xmin, xmax + xstep, xstep), np.arange(ymin, ymax + ystep, ystep))
-        self.z = self.f(self.x, self.y)
-        self.fdx1_solved = self.fdx1(self.x, self.y)
-        self.fdx2_solved = self.fdx2(self.x, self.y)
+class GoldsteinPrice(Optimization):
 
-        self.min_x = np.array([0, -1.])  # global minimum
-        self.min_y = self.f(*self.min_x)
-
-    def get_loss(self, x1, x2):
-        return (self.f(x1, x2) - self.min_y) ** 2
-
-    def get_gradient(self, x1, x2):
-        return np.array([self.fdx1(x1, x2), self.fdx2(x1, x2)])
-
-class BoothOptimization(object):
     def __init__(self):
-        self.f  = lambda x, y: (x + 2*y - 7) ** 2. + (2*x + y - 5) ** 2.
-        self.fdx1 = elementwise_grad(self.f, argnum=0)
-        self.fdx2 = elementwise_grad(self.f, argnum=1)
+        super(GoldsteinPrice, self).__init__(
+            f=lambda x, y: (1 + (x + y + 1) ** 2. * (19 - 14*x + 3*x**2. - 14*y + 6*x*y + 3*y**2.)) * \
+            (30 + (2*x - 3*y)**2. * (18 - 32*x + 12*x**2. + 48*y - 36*x*y + 27*y**2.)),
+            optimum=[0, -1.],
+            xrange=(-2, 2, .1),
+            yrange=(-2, 2, .1),
+        )
 
-        xmin, xmax, xstep = -10, 10, .5
-        ymin, ymax, ystep = -10, 10, .5
-        self.x, self.y = np.meshgrid(np.arange(xmin, xmax + xstep, xstep), np.arange(ymin, ymax + ystep, ystep))
-        self.z = self.f(self.x, self.y)
-        self.fdx1_solved = self.fdx1(self.x, self.y)
-        self.fdx2_solved = self.fdx2(self.x, self.y)
+class Booth(Optimization):
 
-        self.min_x = np.array([1., 3.])  # global minimum
-        self.min_y = self.f(*self.min_x)
+    def __init__(self):
+        super(Booth, self).__init__(
+            f=lambda x, y: (x + 2*y - 7) ** 2. + (2*x + y - 5) ** 2.,
+            optimum=[1., 3.],
+            xrange=(-10, 10, .5),
+            yrange=(-10, 10, .5),
+        )
 
-    def get_loss(self, x1, x2):
-        return (self.f(x1, x2) - self.min_y) ** 2
+class SchafferN2(Optimization):
 
-    def get_gradient(self, x1, x2):
-        return np.array([self.fdx1(x1, x2), self.fdx2(x1, x2)])
+    def __init__(self):
+        super(SchafferN2, self).__init__(
+            f=lambda x, y: 0.5 + ((np.sin(x**2. - y**2.)**2. - 0.5) / (1 + 0.001 * (x**2. + y**2.))**2.),
+            optimum=[0., 0.],
+            xrange=(-100, 100, 5),
+            yrange=(-100, 100, 5),
+        )
+
+class Ackley(Optimization):
+
+    def __init__(self):
+        super(Ackley, self).__init__(
+            f=lambda x, y: -20 * np.exp(-0.2 * np.sqrt(0.5 * (x ** 2. + y ** 2.))) - np.exp(0.5 * (np.cos(2 * np.pi * x) + np.cos(2 * np.pi * y))) + np.e + 20,
+            optimum=[0., 0.],
+            xrange=(-5, 5, 0.2),
+            yrange=(-5, 5, 0.2)
+        )
 
 envs = {
-    'beale': BealeOptimization(),
-    'goldstein-price': GoldsteinPriceOptimization(),
+    'beale': Beale(),
+    'goldstein-price': GoldsteinPrice(),
+    'booth': Booth(),
+    'schaffer-n2': SchafferN2(),
+    'ackley': Ackley()
 }
 
 class UCB1():
@@ -355,7 +366,7 @@ def run_rand_sample_action(env, step_size_choices):
         next_state, reward, done, loss = env.step(action)
         episode_done = done
 
-        if i % len(data) == 0:
+        if i % (len(data) or 100) == 0:
             print("Reward: " + str(reward), end="\r")
             print("Done: " + str(done), end="\r")
             print("Loss: " + str(loss), end="\r")
@@ -365,8 +376,6 @@ def run_rand_sample_action(env, step_size_choices):
         rewards.append(reward)
         losses.append(loss)
 
-    print(i)
-    print(episode_done)
     return i, np.sum(rewards), losses[-1]
 
 def run_SGD(env, step_size):
@@ -384,7 +393,7 @@ def run_SGD(env, step_size):
         next_state, reward, done, loss = env.step(action)
         episode_done = done
 
-        if i % len(data) == 0:
+        if i % (len(data) or 100) == 0:
             print("Reward: " + str(reward), end="\r")
             print("Done: " + str(done), end="\r")
             print("Loss: " + str(loss), end="\r")
@@ -394,8 +403,6 @@ def run_SGD(env, step_size):
         rewards.append(reward)
         losses.append(loss)
 
-    print(i)
-    print(episode_done)
     return i, np.sum(rewards), losses[-1]
 
     # Only plot results if dim = 1
@@ -423,7 +430,7 @@ def run_SGD_mom(env, eta, gamma):
         next_state, reward, done, loss = env.step(action)
         episode_done = done
 
-        if i % len(data) == 0:
+        if i % (len(data) or 100) == 0:
             print("Reward: " + str(reward))
             print("Done: " + str(done))
             print("Loss: " + str(loss))
@@ -433,8 +440,6 @@ def run_SGD_mom(env, eta, gamma):
         rewards.append(reward)
         losses.append(loss)
 
-    print(i)
-    print(episode_done)
     return i, np.sum(rewards), losses[-1]
 
     # Only plot results if dim = 1
@@ -467,7 +472,7 @@ def run_FTL(env, step_size_choices):
         next_state, reward, done, loss = env.step(action)
         episode_done = done
 
-        if i % len(data) == 0:
+        if i % (len(data) or 100) == 0:
             print("Reward: " + str(reward), end="\r")
             print("Done: " + str(done), end="\r")
             print("Loss: " + str(loss), end="\r")
@@ -479,8 +484,6 @@ def run_FTL(env, step_size_choices):
 
     os.makedirs('./tmp-ftl/', exist_ok=True)
     np.save('./tmp-ftl/theta.npy', env.get_theta())
-    print(i)
-    print(episode_done)
     return i, np.sum(rewards), losses[-1]
 
 def m_weights(reward_choices, eta):
@@ -517,7 +520,7 @@ def run_multiplicative_weights(env, step_size_choices):
         next_state, reward, done, loss = env.step(action)
         episode_done = done
 
-        if i % len(data) == 0:
+        if i % (len(data) or 100) == 0:
             print("Reward: " + str(reward), end="\r")
             print("Done: " + str(done), end="\r")
             print("Loss: " + str(loss), end="\r")
@@ -529,8 +532,6 @@ def run_multiplicative_weights(env, step_size_choices):
 
     os.makedirs('./tmp-mw/', exist_ok=True)
     np.save('./tmp-mw/theta.npy', env.get_theta())
-    print(i)
-    print(episode_done)
     return i, np.sum(rewards), losses[-1], probs
 
 def ind_max(x):
@@ -555,7 +556,7 @@ def run_UCB(env, step_size_choices):
         agent.update(step_size_decision, reward)
         episode_done = done
 
-        if i % len(data) == 0:
+        if i % (len(data) or 100) == 0:
             print("Reward: " + str(reward), end="\r")
             print("Done: " + str(done), end="\r")
             print("Loss: " + str(loss), end="\r")
@@ -563,8 +564,6 @@ def run_UCB(env, step_size_choices):
         rewards.append(reward)
         losses.append(loss)
 
-    print(i)
-    print(episode_done)
     os.makedirs('./tmp-ucb/', exist_ok=True)
     np.save('./tmp-ucb/values.npy', agent.values)
     np.save('./tmp-ucb/counts.npy', agent.counts)

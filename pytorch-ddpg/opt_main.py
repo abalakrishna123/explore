@@ -181,13 +181,13 @@ if __name__ == "__main__":
     parser.add_argument('--ou_mu', default=0.0, type=float, help='noise mu')
     parser.add_argument('--validate_episodes', default=20, type=int,
                         help='how many episode to perform during validate experiment')
-    parser.add_argument('--max_episode_length', default=20000, type=int, help='')
+    parser.add_argument('--max_episode_length', default=1000, type=int, help='')
     parser.add_argument('--validate_steps', default=30000, type=int,
                         help='how many steps to perform a validate experiment')
     parser.add_argument('--output', default='output', type=str, help='')
     parser.add_argument('--debug', dest='debug', action='store_true')
     parser.add_argument('--init_w', default=0.003, type=float, help='')
-    parser.add_argument('--train_iter', default=25000000, type=int, help='train iters each timestep')
+    parser.add_argument('--train_iter', default=50000, type=int, help='train iters each timestep')
     parser.add_argument('--epsilon', default=5, type=int, help='linear decay of exploration policy')
     parser.add_argument('--seed', default=-1, type=int, help='')
     parser.add_argument('--resume', default='default', type=str, help='Resuming model path for testing')
@@ -215,7 +215,7 @@ if __name__ == "__main__":
     prYellow("CUDA enabled?: {}".format(cuda_on))
 
     # env = NormalizedEnv(gym.make(args.env))
-    env = LearnedOptimizationEnv(1000, args.grad_batch_size, args.ndim, args.lossthresh, 20000, args.nlosses, args.ngradients,
+    env = LearnedOptimizationEnv(1000, args.grad_batch_size, args.ndim, args.lossthresh, args.max_episode_length, args.nlosses, args.ngradients,
         skip=args.skip, dataset=args.dataset)
 
 
@@ -239,16 +239,29 @@ if __name__ == "__main__":
              visualize=False, debug=args.debug)
 
     elif args.mode == 'custom':
+        print("Random Learning Rate")
+        print(run_rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100])))
         print("Multiplicative Weights")
-        run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+        print(run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100])))
         print("UCB")
-        run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+        print(run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100])))
         print("FTL")
-        run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-        # print("SGD")
-        # run_SGD(env, 0.01)
-        # print("ADAM")
-        # run_adam_optimizer(env)
+        print(run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100])))
+        print("SGD")
+        print(run_SGD(env, 0.01))
+        print("SGD with momentum")
+        print(run_SGD_mom(env, 0.01, 0.7))
+
+        # print("Multiplicative Weights")
+        # run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+        # print("UCB")
+        # run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+        # print("FTL")
+        # run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+        # # print("SGD")
+        # # run_SGD(env, 0.01)
+        # # print("ADAM")
+        # # run_adam_optimizer(env)
 
     else:
         raise RuntimeError('undefined mode {}'.format(args.mode))
