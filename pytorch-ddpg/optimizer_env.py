@@ -19,8 +19,35 @@ import pickle
 import math
 import os
 
+
+##################
+# NONCONVEX ENVS #
+##################
+
+class BealeOptimization(object):
+    def __init__(self):
+        self.f  = lambda x, y: (1.5 - x + x*y)**2 + (2.25 - x + x*y**2)**2 + (2.625 - x + x*y**3)**2
+        self.fdx1 = elementwise_grad(self.f, argnum=0)
+        self.fdx2 = elementwise_grad(self.f, argnum=1)
+
+        xmin, xmax, xstep = -4.5, 4.5, .2
+        ymin, ymax, ystep = -4.5, 4.5, .2
+        self.x, self.y = np.meshgrid(np.arange(xmin, xmax + xstep, xstep), np.arange(ymin, ymax + ystep, ystep))
+        self.z = self.f(self.x, self.y)
+        self.fdx1_solved = self.fdx1(self.x, self.y)
+        self.fdx2_solved = self.fdx2(self.x, self.y)
+
+        self.min_x = np.array([3., .5])  # global minimum
+        self.min_y = self.f(*self.min_x)
+
+    def get_loss(self, x1, x2):
+        return (self.f(x1, x2) - self.min_y) ** 2
+
+    def get_gradient(self, x1, x2):
+        return np.array([self.fdx1(x1, x2), self.fdx2(x1, x2)])
+
 envs = {
-    'rosenbrock': Rosenbrock
+    'beale': BealeOptimization()
 }
 
 class UCB1():
@@ -64,8 +91,6 @@ def get_data(dataset, num_points, dim, noise_std):
         return get_nonconvex_easy_data(num_points, dim, noise_std)
     elif dataset in envs:
         return get_custom_env_data(num_points, dim, noise_std, dataset)
-    elif dataset.lower() == 'beale':
-        return []
 
 # First logical test would be to make sure that LearnedOptimizationEnv
 # works when just use SGD as action, then test DDPG, should be easy
@@ -100,40 +125,7 @@ def get_nonconvex_easy_data(num_points, dim, noise_std):
 
 def get_custom_env_data(num_points, dim, noise_std, dataset):
     """return nxd"""
-    # assert dim == 1
-    Env = envs[dataset]
-    env = Env()
-
-    w = 100 + (np.random.random() * 10)
-    b = 1 + np.random.random()
-    coords = np.random.random((num_points, 2))
-    energy = env.getEnergy(coords.T, (w, b))[:, None]  # NOTE: third-party code takes 2xn
-    return np.concatenate((coords, energy), axis=1)
-
-class BealeOptimization(object):
-    def __init__(self):
-        self.f  = lambda x, y: (1.5 - x + x*y)**2 + (2.25 - x + x*y**2)**2 + (2.625 - x + x*y**3)**2
-        self.fdx1 = elementwise_grad(self.f, argnum=0)
-        self.fdx2 = elementwise_grad(self.f, argnum=1)
-
-        xmin, xmax, xstep = -4.5, 4.5, .2
-        ymin, ymax, ystep = -4.5, 4.5, .2
-        self.x, self.y = np.meshgrid(np.arange(xmin, xmax + xstep, xstep), np.arange(ymin, ymax + ystep, ystep))
-        self.z = self.f(self.x, self.y)
-        self.fdx1_solved = self.fdx1(self.x, self.y)
-        self.fdx2_solved = self.fdx2(self.x, self.y)
-
-        self.min_x = np.array([3., .5])  # global minimum
-        self.min_y = self.f(*self.min_x)
-
-    def get_loss(self, x1, x2):
-        return (self.f(x1, x2) - self.min_y) ** 2
-
-    def get_gradient(self, x1, x2):
-        return np.array([self.fdx1(x1, x2), self.fdx2(x1, x2)])
-
-
-beale_opt_env = BealeOptimization()
+    return []
 
 
 ########
@@ -154,9 +146,6 @@ def get_loss(dataset, theta, data):
         return get_nonconvex_hard_loss(theta, data)
     elif dataset in envs:
         return get_custom_env_loss(dataset, theta, data)
-    elif dataset.lower() == 'beale':
-        assert len(theta) == 2
-        return beale_opt_env.get_loss(theta[0], theta[1])
     else:
         raise NotImplementedError
 
@@ -191,12 +180,9 @@ def get_nonconvex_hard_loss(theta, data):
 
 
 def get_custom_env_loss(dataset, theta, data):
-    Env = envs[dataset]
-    env = Env()
-
-    coords, y = data[:, :2], data[:, -1]
-    yhat = env.getEnergy(coords.T, theta)
-    return np.linalg.norm(yhat - y)
+    assert len(theta) == 2
+    env = envs[dataset]
+    return env.get_loss(theta[0], theta[1])
 
 
 ############
@@ -225,10 +211,6 @@ def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
         gradient = get_nonconvex_hard_gradient(theta, x, y)
     elif dataset in envs:
         gradient = get_custom_env_gradient(dataset, theta, x, y)
-    elif dataset.lower() == 'beale':
-        assert len(theta) == 2
-        gradient = beale_opt_env.get_gradient(theta[0], theta[1])
-        # return gradient  # no need to normalize
     else:
         raise UserWarning('Invalid dataset: {}'.format(dataset))
 
@@ -259,12 +241,9 @@ def get_nonconvex_hard_gradient(theta, x, y):
 
 
 def get_custom_env_gradient(dataset, theta, x, y):
-    Env = envs[dataset]
-    env = Env()
-
-    yhat, gradient = env.getEnergyGradient(x.T, theta)
-    gradient = gradient.dot(yhat - y)
-    return gradient
+    assert len(theta) == 2
+    env = envs[dataset]
+    return env.get_gradient(theta[0], theta[1])
 
 
 # Some other gradients?
