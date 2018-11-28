@@ -46,8 +46,55 @@ class BealeOptimization(object):
     def get_gradient(self, x1, x2):
         return np.array([self.fdx1(x1, x2), self.fdx2(x1, x2)])
 
+
+class GoldsteinPriceOptimization(object):
+    def __init__(self):
+        self.f  = lambda x, y: (1 + (x + y + 1) ** 2. * (19 - 14*x + 3*x**2. - 14*y + 6*x*y + 3*y**2.)) * \
+            (30 + (2*x - 3*y)**2. * (18 - 32*x + 12*x**2. + 48*y - 36*x*y + 27*y**2.))
+        self.fdx1 = elementwise_grad(self.f, argnum=0)
+        self.fdx2 = elementwise_grad(self.f, argnum=1)
+
+        xmin, xmax, xstep = -2, 2, .1
+        ymin, ymax, ystep = -2, 2, .1
+        self.x, self.y = np.meshgrid(np.arange(xmin, xmax + xstep, xstep), np.arange(ymin, ymax + ystep, ystep))
+        self.z = self.f(self.x, self.y)
+        self.fdx1_solved = self.fdx1(self.x, self.y)
+        self.fdx2_solved = self.fdx2(self.x, self.y)
+
+        self.min_x = np.array([0, -1.])  # global minimum
+        self.min_y = self.f(*self.min_x)
+
+    def get_loss(self, x1, x2):
+        return (self.f(x1, x2) - self.min_y) ** 2
+
+    def get_gradient(self, x1, x2):
+        return np.array([self.fdx1(x1, x2), self.fdx2(x1, x2)])
+
+class BoothOptimization(object):
+    def __init__(self):
+        self.f  = lambda x, y: (x + 2*y - 7) ** 2. + (2*x + y - 5) ** 2.
+        self.fdx1 = elementwise_grad(self.f, argnum=0)
+        self.fdx2 = elementwise_grad(self.f, argnum=1)
+
+        xmin, xmax, xstep = -10, 10, .5
+        ymin, ymax, ystep = -10, 10, .5
+        self.x, self.y = np.meshgrid(np.arange(xmin, xmax + xstep, xstep), np.arange(ymin, ymax + ystep, ystep))
+        self.z = self.f(self.x, self.y)
+        self.fdx1_solved = self.fdx1(self.x, self.y)
+        self.fdx2_solved = self.fdx2(self.x, self.y)
+
+        self.min_x = np.array([1., 3.])  # global minimum
+        self.min_y = self.f(*self.min_x)
+
+    def get_loss(self, x1, x2):
+        return (self.f(x1, x2) - self.min_y) ** 2
+
+    def get_gradient(self, x1, x2):
+        return np.array([self.fdx1(x1, x2), self.fdx2(x1, x2)])
+
 envs = {
-    'beale': BealeOptimization()
+    'beale': BealeOptimization(),
+    'goldstein-price': GoldsteinPriceOptimization(),
 }
 
 class UCB1():
@@ -191,7 +238,7 @@ def get_custom_env_loss(dataset, theta, data):
 
 
 def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
-    if dataset not in ['beale']:
+    if dataset not in envs.keys():
         X, Y = data[:, :-1], data[:, -1]
         # select batch
         indices = np.random.randint(len(X), size=batch_size)
@@ -564,7 +611,7 @@ class Buffer(object):
 class LearnedOptimizationEnv:
     def __init__(self, num_points, grad_batch_size, dim, loss_thresh, max_steps, losses_hist_length,
                  grads_hist_length, skip=0, dataset='simple'):
-        if dataset.lower() == 'beale':
+        if dataset.lower() in envs.keys():
             assert dim == 1
 
         # Get data + initialize optimization parameters
