@@ -30,7 +30,8 @@ def plot(x, y, xlabel, ylabel, hook=lambda plt: None):
     plt.cla()
     plt.close()
 
-def train(num_iterations, agent, env, evaluate, validate_steps, output, max_episode_length=None, debug=False):
+# Periodically change env
+def train(switch, switch_freq, dataset_options, num_iterations, agent, env, evaluate, validate_steps, output, max_episode_length=None, debug=False):
     prYellow("Debugging?: {}".format(debug))
     agent.is_training = True
     step = episode = episode_steps = 0
@@ -42,12 +43,21 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
     episode_losses = []
     episode_deltas = []
     episode_steps_list = []
+    curr_dataset_idx = 0
 
     while step < num_iterations:
         # reset if it is the start of episode
         if observation is None:
-            observation = deepcopy(env.reset())
+            if switch and episode % switch_freq == 0:
+                observation = deepcopy(env.reset(dataset_options[curr_dataset_idx]))
+                curr_dataset_idx = (curr_dataset_idx + 1) % len(dataset_options)
+                print("DATASET")
+                print(env.dataset)
+                print("END DATASET")
+            else:
+                observation = deepcopy(env.reset())
             agent.reset(observation)
+
         # agent pick action ...
         if step <= args.warmup:
             # action = agent.random_action()
@@ -199,6 +209,8 @@ if __name__ == "__main__":
     parser.add_argument('--ndim', default=1, help='number of dims', type=int)
     parser.add_argument('--grad_batch_size', default=50, help='batch size for training agent', type=int)
     parser.add_argument('--dataset', default='simple', choices=('simple', 'mnist', 'nonconvex_easy', 'nonconvex_medium', 'nonconvex_hard', 'beale') + tuple(envs.keys()))
+    parser.add_argument('--switch', default=0, help = "Whether or not to switch between different envs")
+    parser.add_argument('--switch_freq', default=10, help = "How many episodes should you run before switching to a different env, used if switch is 1")
     parser.add_argument('--actor_clone', default=0, type=int) # whether to behavior clone warmup rollouts, 0 is false (default), 1 is true
     parser.add_argument('--update_policy_every_step', default=1, type=int) # whether to update policy every step, 1 is true (default), 0 is false
     parser.add_argument('--lossthresh', default=0.5, type=float, help='')
@@ -230,8 +242,11 @@ if __name__ == "__main__":
     evaluate = Evaluator(args.validate_episodes,
                          args.validate_steps, args.output, max_episode_length=args.max_episode_length)
 
+    # TODO: Make this configurable in run script
+    dataset_options = ["beale", "booth"]
+    ####
     if args.mode == 'train':
-        train(args.train_iter, agent, env, evaluate,
+        train(args.switch, args.switch_freq, dataset_options, args.train_iter, agent, env, evaluate,
               args.validate_steps, args.output, max_episode_length=args.max_episode_length, debug=args.debug)
 
     elif args.mode == 'test':

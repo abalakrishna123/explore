@@ -635,7 +635,7 @@ class LearnedOptimizationEnv:
             self.losses.get_list() + [grad_elem for grad in self.gradients.get_list() for grad_elem in grad])
         # self.state = np.array(self.losses.get_list())
 
-    def reset(self):
+    def reset(self, dataset=None):
         """Reset environment and get initial state"""
         self.p_coor = 1
         self.theta = np.random.random(self.dim + 1)
@@ -645,6 +645,8 @@ class LearnedOptimizationEnv:
         self.state = np.array(
             self.losses.get_list() + [grad_elem for grad in self.gradients.get_list() for grad_elem in grad])
         self.num_steps = 0
+        if dataset is not None:
+            self.dataset = dataset
         # self.state = np.array(self.losses.get_list())
         return self.state
 
