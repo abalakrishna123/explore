@@ -70,14 +70,15 @@ class Evaluator(object):
             episode_steps_list.append(episode_steps)
 
             if episode % 10 == 0:
-                def generate_hook(field_name):
+                def generate_hook(field_name, val):
                     def hook(plt):
                         plt.savefig('{}/episode_{}'.format(self.save_path, field_name) + '_test.png')
-                        savemat('{}/episode_{}'.format(self.save_path, field_name) + '_test.mat', {field_name: episode_rewards})
+                        savemat('{}/episode_{}'.format(self.save_path, field_name) + '_test', {field_name: val})
                     return hook
-                plot(len(episode_rewards), episode_rewards, 'Episode', 'Average Reward', generate_hook('reward'))
-                plot(len(episode_losses), episode_losses, 'Episode', 'Average Loss', generate_hook('loss'))
-                plot(len(episode_steps_list), episode_steps_list, 'Episode', 'Total Steps', generate_hook('steps'))
+                plot(len(episode_rewards), episode_rewards, 'Episode', 'Average Reward', generate_hook('reward', episode_rewards))
+                plot(len(episode_losses), episode_losses, 'Episode', 'Average Loss', generate_hook('loss', episode_losses))
+                plot(len(episode_steps_list), episode_steps_list, 'Episode', 'Total Steps', generate_hook('steps', episode_steps_list))
+                print(episode_steps_list)
 
             if debug:
                 prLightPurple('#{}: len:{} episode_reward:{} episode_loss:{} steps:{} theta:{}'.format(

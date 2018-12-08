@@ -376,7 +376,7 @@ def run_rand_sample_action(env, step_size_choices):
         rewards.append(reward)
         losses.append(loss)
 
-    return i, np.sum(rewards), losses[-1]
+    return np.array([i, np.sum(rewards), losses[-1]])
 
 def run_SGD(env, step_size):
     state = env.reset()
@@ -403,7 +403,7 @@ def run_SGD(env, step_size):
         rewards.append(reward)
         losses.append(loss)
 
-    return i, np.sum(rewards), losses[-1]
+    return np.array([i, np.sum(rewards), losses[-1]])
 
     # Only plot results if dim = 1
     # plot_results(env.get_theta(), data)
@@ -440,7 +440,7 @@ def run_SGD_mom(env, eta, gamma):
         rewards.append(reward)
         losses.append(loss)
 
-    return i, np.sum(rewards), losses[-1]
+    return np.array([i, np.sum(rewards), losses[-1]])
 
     # Only plot results if dim = 1
     # plot_results(env.get_theta(), data)
@@ -484,7 +484,7 @@ def run_FTL(env, step_size_choices):
 
     os.makedirs('./tmp-ftl/', exist_ok=True)
     np.save('./tmp-ftl/theta.npy', env.get_theta())
-    return i, np.sum(rewards), losses[-1]
+    return np.array([i, np.sum(rewards), losses[-1]])
 
 def m_weights(reward_choices, eta):
     weights = np.exp(eta*reward_choices)
@@ -532,7 +532,7 @@ def run_multiplicative_weights(env, step_size_choices):
 
     os.makedirs('./tmp-mw/', exist_ok=True)
     np.save('./tmp-mw/theta.npy', env.get_theta())
-    return i, np.sum(rewards), losses[-1], probs
+    return np.array([i, np.sum(rewards), losses[-1]])
 
 def ind_max(x):
   m = max(x)
@@ -567,7 +567,7 @@ def run_UCB(env, step_size_choices):
     os.makedirs('./tmp-ucb/', exist_ok=True)
     np.save('./tmp-ucb/values.npy', agent.values)
     np.save('./tmp-ucb/counts.npy', agent.counts)
-    return i, np.sum(rewards), losses[-1]
+    return np.array([i, np.sum(rewards), losses[-1]])
 #############
 # UTILITIES #
 #############

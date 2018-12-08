@@ -13,6 +13,7 @@ from ddpg import DDPG
 from util import *
 from scipy.io import savemat
 import matplotlib.pyplot as plt
+import pickle
 
 import os
 cpu_cores = [0,1,2,3,4,5,6] # Cores (numbered 0-11)
@@ -46,6 +47,8 @@ def train(switch, switch_freq, dataset_options, num_iterations, agent, env, eval
     curr_dataset_idx = 0
 
     while step < num_iterations:
+        if step % 1000 == 0:
+            print("Num Iterations: ", step)
         # reset if it is the start of episode
         if observation is None:
             if switch and episode % switch_freq == 0:
@@ -126,15 +129,16 @@ def train(switch, switch_freq, dataset_options, num_iterations, agent, env, eval
             episode_steps_list.append(episode_steps)
 
             if episode % 10 == 0:
-                def generate_hook(field_name):
+                def generate_hook(field_name, val):
                     def hook(plt):
                         plt.savefig('{}/episode_{}'.format(output, field_name) + '.png')
-                        savemat('{}/episode_{}'.format(output, field_name) + '.mat', {field_name: episode_rewards})
+                        savemat('{}/episode_{}'.format(output, field_name) + '.mat', {field_name: val})
                     return hook
-                plot(len(episode_rewards), episode_rewards, 'Episode', 'Average Reward', generate_hook('reward'))
-                plot(len(episode_losses), episode_losses, 'Episode', 'Average Loss', generate_hook('loss'))
-                plot(len(episode_deltas), episode_deltas, 'Episode', 'Max Delta', generate_hook('deltas'))
-                plot(len(episode_steps_list), episode_steps_list, 'Episode', 'Total Steps', generate_hook('steps'))
+                plot(len(episode_rewards), episode_rewards, 'Episode', 'Average Reward', generate_hook('reward', episode_rewards))
+                plot(len(episode_losses), episode_losses, 'Episode', 'Average Loss', generate_hook('loss', episode_losses))
+                plot(len(episode_deltas), episode_deltas, 'Episode', 'Max Delta', generate_hook('deltas', episode_deltas))
+                plot(len(episode_steps_list), episode_steps_list, 'Episode', 'Total Steps', generate_hook('steps', episode_steps_list))
+                print(episode_steps_list)
 
             if debug:
                 prLightPurple('#{}: len:{} episode_reward:{} episode_loss:{} steps:{} theta:{}'.format(
@@ -214,6 +218,7 @@ if __name__ == "__main__":
     parser.add_argument('--actor_clone', default=0, type=int) # whether to behavior clone warmup rollouts, 0 is false (default), 1 is true
     parser.add_argument('--update_policy_every_step', default=1, type=int) # whether to update policy every step, 1 is true (default), 0 is false
     parser.add_argument('--lossthresh', default=0.5, type=float, help='')
+    parser.add_argument('--num_baseline_trials', default=20, type=float, help = 'Number of rollouts for each baseline')
     # parser.add_argument('--single_lr', action='store_true', help='if true, use a single learning rate for all dimensions')
     args = parser.parse_args()
     args.output = get_output_folder(args.output, args.env)
@@ -254,29 +259,23 @@ if __name__ == "__main__":
              visualize=False, debug=args.debug)
 
     elif args.mode == 'custom':
-        print("Random Learning Rate")
-        print(run_rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100])))
-        print("Multiplicative Weights")
-        print(run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100])))
-        print("UCB")
-        print(run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100])))
-        print("FTL")
-        print(run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100])))
-        print("SGD")
-        print(run_SGD(env, 0.01))
-        print("SGD with momentum")
-        print(run_SGD_mom(env, 0.01, 0.7))
+        baseline_results = {'random' : np.array([0., 0., 0.]), 
+        'multiplicative_weights' : np.array([0., 0., 0.]), 
+        'UCB' : np.array([0., 0., 0.]), 
+        'FTL' : np.array([0., 0., 0.]), 
+        'SGD' : np.array([0., 0., 0.]), 
+        'momentum' : np.array([0., 0., 0.])}
 
-        # print("Multiplicative Weights")
-        # run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-        # print("UCB")
-        # run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-        # print("FTL")
-        # run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
-        # # print("SGD")
-        # # run_SGD(env, 0.01)
-        # # print("ADAM")
-        # # run_adam_optimizer(env)
-
+        for i in range(args.num_baseline_trials):
+        	print("Trial: ", i)
+	        baseline_results['random'] += run_rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))/float(args.num_baseline_trials)
+	        baseline_results['multiplicative_weights'] += run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))/float(args.num_baseline_trials)
+	        baseline_results['UCB'] += run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))/float(args.num_baseline_trials)
+	        baseline_results['FTL'] += run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))/float(args.num_baseline_trials)
+	        baseline_results['SGD'] += run_SGD(env, 0.01)/float(args.num_baseline_trials)
+	        baseline_results['momentum'] += run_SGD_mom(env, 0.01, 0.7)/float(args.num_baseline_trials)
+        
+        print(baseline_results)
+        pickle.dump(baseline_results, open("baseline_results.p", "wb"))
     else:
         raise RuntimeError('undefined mode {}'.format(args.mode))
