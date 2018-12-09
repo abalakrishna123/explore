@@ -13,6 +13,7 @@ from ddpg import DDPG
 from util import *
 from scipy.io import savemat
 import matplotlib.pyplot as plt
+import pickle
 
 import os
 cpu_cores = [0,1,2,3,4,5,6] # Cores (numbered 0-11)
@@ -30,7 +31,8 @@ def plot(x, y, xlabel, ylabel, hook=lambda plt: None):
     plt.cla()
     plt.close()
 
-def train(num_iterations, agent, env, evaluate, validate_steps, output, max_episode_length=None, debug=False):
+# Periodically change env
+def train(switch, switch_freq, dataset_options, num_iterations, agent, env, evaluate, validate_steps, output, max_episode_length=None, debug=False):
     prYellow("Debugging?: {}".format(debug))
     agent.is_training = True
     step = episode = episode_steps = 0
@@ -42,12 +44,23 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
     episode_losses = []
     episode_deltas = []
     episode_steps_list = []
+    curr_dataset_idx = 0
 
     while step < num_iterations:
+        if step % 1000 == 0:
+            print("Num Iterations: ", step)
         # reset if it is the start of episode
         if observation is None:
-            observation = deepcopy(env.reset())
+            if switch and episode % switch_freq == 0:
+                observation = deepcopy(env.reset(dataset_options[curr_dataset_idx]))
+                curr_dataset_idx = (curr_dataset_idx + 1) % len(dataset_options)
+                print("DATASET")
+                print(env.dataset)
+                print("END DATASET")
+            else:
+                observation = deepcopy(env.reset())
             agent.reset(observation)
+
         # agent pick action ...
         if step <= args.warmup:
             # action = agent.random_action()
@@ -86,7 +99,7 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
         #         prYellow('[Evaluate] Step_{:07d}: mean_loss:{}'.format(step, validate_loss))
 
         # [optional] save intermediate model
-        if step % int(num_iterations / 3) == 0:
+        if episode % 100 == 0:
             agent.save_model(output)
 
         # if step % len(env.get_data()) == 0:
@@ -116,15 +129,16 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
             episode_steps_list.append(episode_steps)
 
             if episode % 10 == 0:
-                def generate_hook(field_name):
+                def generate_hook(field_name, val):
                     def hook(plt):
                         plt.savefig('{}/episode_{}'.format(output, field_name) + '.png')
-                        savemat('{}/episode_{}'.format(output, field_name) + '.mat', {field_name: episode_rewards})
+                        savemat('{}/episode_{}'.format(output, field_name) + '.mat', {field_name: val})
                     return hook
-                plot(len(episode_rewards), episode_rewards, 'Episode', 'Average Reward', generate_hook('reward'))
-                plot(len(episode_losses), episode_losses, 'Episode', 'Average Loss', generate_hook('loss'))
-                plot(len(episode_deltas), episode_deltas, 'Episode', 'Max Delta', generate_hook('deltas'))
-                plot(len(episode_steps_list), episode_steps_list, 'Episode', 'Total Steps', generate_hook('steps'))
+                plot(len(episode_rewards), episode_rewards, 'Episode', 'Average Reward', generate_hook('reward', episode_rewards))
+                plot(len(episode_losses), episode_losses, 'Episode', 'Average Loss', generate_hook('loss', episode_losses))
+                plot(len(episode_deltas), episode_deltas, 'Episode', 'Max Delta', generate_hook('deltas', episode_deltas))
+                plot(len(episode_steps_list), episode_steps_list, 'Episode', 'Total Steps', generate_hook('steps', episode_steps_list))
+                print(episode_steps_list)
 
             if debug:
                 prLightPurple('({}) #{}: len:{} episode_reward:{} episode_loss:{} steps:{} theta:{}'.format(
@@ -154,7 +168,7 @@ def test(num_episodes, agent, env, evaluate, model_path, visualize=True, debug=F
     agent.load_weights(model_path)
     agent.is_training = False
     agent.eval()
-    policy = lambda x: agent.select_action(x, decay_epsilon=False)
+    policy = lambda x: agent.select_action(x, env.get_theta(), env.get_data(), decay_epsilon=False)
 
     for i in range(num_episodes):
         validate_reward = evaluate(env, policy, debug=debug, visualize=visualize, save=False)
@@ -170,7 +184,7 @@ if __name__ == "__main__":
     parser.add_argument('--hidden2', default=40, type=int, help='hidden num of second fully connect layer')
     parser.add_argument('--rate', default=0.001, type=float, help='learning rate')
     parser.add_argument('--prate', default=0.0001, type=float, help='policy net learning rate (only for DDPG)')
-    parser.add_argument('--warmup', default=5000000, type=int,
+    parser.add_argument('--warmup', default=500000, type=int,
                         help='time without training but only filling the replay memory')
     parser.add_argument('--discount', default=0.99, type=float, help='')
     parser.add_argument('--bsize', default=64, type=int, help='minibatch size')
@@ -182,13 +196,13 @@ if __name__ == "__main__":
     parser.add_argument('--ou_mu', default=0.0, type=float, help='noise mu')
     parser.add_argument('--validate_episodes', default=20, type=int,
                         help='how many episode to perform during validate experiment')
-    parser.add_argument('--max_episode_length', default=20000, type=int, help='')
+    parser.add_argument('--max_episode_length', default=1000, type=int, help='')
     parser.add_argument('--validate_steps', default=30000, type=int,
                         help='how many steps to perform a validate experiment')
     parser.add_argument('--output', default='output', type=str, help='')
     parser.add_argument('--debug', dest='debug', action='store_true')
     parser.add_argument('--init_w', default=0.003, type=float, help='')
-    parser.add_argument('--train_iter', default=25000000, type=int, help='train iters each timestep')
+    parser.add_argument('--train_iter', default=50000, type=int, help='train iters each timestep')
     parser.add_argument('--epsilon', default=5, type=int, help='linear decay of exploration policy')
     parser.add_argument('--seed', default=-1, type=int, help='')
     parser.add_argument('--resume', default='default', type=str, help='Resuming model path for testing')
@@ -197,10 +211,15 @@ if __name__ == "__main__":
     parser.add_argument('--ngradients', default=100, help='number of gradients included in state', type=int)
     parser.add_argument('--skip', default=0, help='number of steps to skip when storing state')
     parser.add_argument('--nlosses', default=100, help='number of losses included in state', type=int)
+    parser.add_argument('--ndim', default=1, help='number of dims', type=int)
     parser.add_argument('--grad_batch_size', default=50, help='batch size for training agent', type=int)
-    parser.add_argument('--dataset', default='simple', choices=('simple', 'mnist', 'nonconvex_easy', 'nonconvex_medium', 'nonconvex_hard'))
+    parser.add_argument('--dataset', default='simple', choices=('simple', 'mnist', 'nonconvex_easy', 'nonconvex_medium', 'nonconvex_hard', 'beale') + tuple(envs.keys()))
+    parser.add_argument('--switch', default=0, help = "Whether or not to switch between different envs")
+    parser.add_argument('--switch_freq', default=10, help = "How many episodes should you run before switching to a different env, used if switch is 1")
     parser.add_argument('--actor_clone', default=0, type=int) # whether to behavior clone warmup rollouts, 0 is false (default), 1 is true
     parser.add_argument('--update_policy_every_step', default=1, type=int) # whether to update policy every step, 1 is true (default), 0 is false
+    parser.add_argument('--lossthresh', default=0.5, type=float, help='')
+    parser.add_argument('--num_baseline_trials', default=20, type=float, help = 'Number of rollouts for each baseline')
     # parser.add_argument('--single_lr', action='store_true', help='if true, use a single learning rate for all dimensions')
     args = parser.parse_args()
     args.output = get_output_folder(args.output, args.env)
@@ -214,7 +233,7 @@ if __name__ == "__main__":
     prYellow("CUDA enabled?: {}".format(cuda_on))
 
     # env = NormalizedEnv(gym.make(args.env))
-    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 2, 1, 20000, args.nlosses, args.ngradients,
+    env = LearnedOptimizationEnv(1000, args.grad_batch_size, args.ndim, args.lossthresh, args.max_episode_length, args.nlosses, args.ngradients,
         skip=args.skip, dataset=args.dataset)
 
 
@@ -229,13 +248,35 @@ if __name__ == "__main__":
     evaluate = Evaluator(args.validate_episodes,
                          args.validate_steps, args.output, max_episode_length=args.max_episode_length)
 
+    # TODO: Make this configurable in run script
+    dataset_options = ["beale", "booth"]
+    ####
     if args.mode == 'train':
-        train(args.train_iter, agent, env, evaluate,
+        train(args.switch, args.switch_freq, dataset_options, args.train_iter, agent, env, evaluate,
               args.validate_steps, args.output, max_episode_length=args.max_episode_length, debug=args.debug)
 
     elif args.mode == 'test':
         test(args.validate_episodes, agent, env, evaluate, args.resume,
-             visualize=True, debug=args.debug)
+             visualize=False, debug=args.debug)
 
+    elif args.mode == 'custom':
+        baseline_results = {'random' : np.array([0., 0., 0.]), 
+        'multiplicative_weights' : np.array([0., 0., 0.]), 
+        'UCB' : np.array([0., 0., 0.]), 
+        'FTL' : np.array([0., 0., 0.]), 
+        'SGD' : np.array([0., 0., 0.]), 
+        'momentum' : np.array([0., 0., 0.])}
+
+        for i in range(args.num_baseline_trials):
+        	print("Trial: ", i)
+	        baseline_results['random'] += run_rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))/float(args.num_baseline_trials)
+	        baseline_results['multiplicative_weights'] += run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))/float(args.num_baseline_trials)
+	        baseline_results['UCB'] += run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))/float(args.num_baseline_trials)
+	        baseline_results['FTL'] += run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))/float(args.num_baseline_trials)
+	        baseline_results['SGD'] += run_SGD(env, 0.01)/float(args.num_baseline_trials)
+	        baseline_results['momentum'] += run_SGD_mom(env, 0.01, 0.7)/float(args.num_baseline_trials)
+        
+        print(baseline_results)
+        pickle.dump(baseline_results, open("baseline_results.p", "wb"))
     else:
         raise RuntimeError('undefined mode {}'.format(args.mode))

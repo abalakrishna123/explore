@@ -154,6 +154,13 @@ class DDPG(object):
 
         self.a_delta_t = action_delta
         self.a_t = action
+
+        # print({
+        #     'action': action,
+        #     'action_delta': action_delta,
+        #     'theta': theta
+        # })
+
         return action
 
     def SGD_action(self, theta, data):

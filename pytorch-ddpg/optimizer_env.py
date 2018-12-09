@@ -9,12 +9,131 @@ Data and losses are organized into the following order:
 - CIFAR-10 (coming soon)
 """
 
-import numpy as np
+import autograd.numpy as np
+from autograd import elementwise_grad
 import matplotlib.pyplot as plt
 from collections import deque
+from envs.rosenbrock import Rosenbrock
 import torch
 import pickle
+import math
+import os
 
+
+##################
+# NONCONVEX ENVS #
+##################
+
+
+class Optimization:
+
+    def __init__(self, f, optimum, xrange, yrange):
+        self.f  = f
+        self.fdx1 = elementwise_grad(self.f, argnum=0)
+        self.fdx2 = elementwise_grad(self.f, argnum=1)
+
+        xmin, xmax, xstep = xrange
+        ymin, ymax, ystep = yrange
+        self.x, self.y = np.meshgrid(np.arange(xmin, xmax + xstep, xstep), np.arange(ymin, ymax + ystep, ystep))
+        self.z = self.f(self.x, self.y)
+        self.fdx1_solved = self.fdx1(self.x, self.y)
+        self.fdx2_solved = self.fdx2(self.x, self.y)
+
+        self.min_x = np.array(optimum)  # global minimum
+        self.min_y = self.f(*self.min_x)
+
+    def get_loss(self, x1, x2):
+        return (self.f(x1, x2) - self.min_y) ** 2
+
+    def get_gradient(self, x1, x2):
+        return np.array([self.fdx1(x1, x2), self.fdx2(x1, x2)])
+
+
+class Beale(Optimization):
+
+    def __init__(self):
+        super(Beale, self).__init__(
+            f=lambda x, y: (1.5 - x + x*y)**2 + (2.25 - x + x*y**2)**2 + (2.625 - x + x*y**3)**2,
+            optimum=[3., .5],
+            xrange=(-4.5, 4.5, .2),
+            yrange=(-4.5, 4.5, .2),
+        )
+
+class GoldsteinPrice(Optimization):
+
+    def __init__(self):
+        super(GoldsteinPrice, self).__init__(
+            f=lambda x, y: (1 + (x + y + 1) ** 2. * (19 - 14*x + 3*x**2. - 14*y + 6*x*y + 3*y**2.)) * \
+            (30 + (2*x - 3*y)**2. * (18 - 32*x + 12*x**2. + 48*y - 36*x*y + 27*y**2.)),
+            optimum=[0, -1.],
+            xrange=(-2, 2, .1),
+            yrange=(-2, 2, .1),
+        )
+
+class Booth(Optimization):
+
+    def __init__(self):
+        super(Booth, self).__init__(
+            f=lambda x, y: (x + 2*y - 7) ** 2. + (2*x + y - 5) ** 2.,
+            optimum=[1., 3.],
+            xrange=(-10, 10, .5),
+            yrange=(-10, 10, .5),
+        )
+
+class SchafferN2(Optimization):
+
+    def __init__(self):
+        super(SchafferN2, self).__init__(
+            f=lambda x, y: 0.5 + ((np.sin(x**2. - y**2.)**2. - 0.5) / (1 + 0.001 * (x**2. + y**2.))**2.),
+            optimum=[0., 0.],
+            xrange=(-100, 100, 5),
+            yrange=(-100, 100, 5),
+        )
+
+class Ackley(Optimization):
+
+    def __init__(self):
+        super(Ackley, self).__init__(
+            f=lambda x, y: -20 * np.exp(-0.2 * np.sqrt(0.5 * (x ** 2. + y ** 2.))) - np.exp(0.5 * (np.cos(2 * np.pi * x) + np.cos(2 * np.pi * y))) + np.e + 20,
+            optimum=[0., 0.],
+            xrange=(-5, 5, 0.2),
+            yrange=(-5, 5, 0.2)
+        )
+
+envs = {
+    'beale': Beale(),
+    'goldstein-price': GoldsteinPrice(),
+    'booth': Booth(),
+    'schaffer-n2': SchafferN2(),
+    'ackley': Ackley()
+}
+
+class UCB1():
+  def __init__(self, n_arms):
+    self.counts = [0 for col in range(n_arms)]
+    self.values = [0.0 for col in range(n_arms)]
+
+  def select_arm(self):
+    n_arms = len(self.counts)
+    for arm in range(n_arms):
+      if self.counts[arm] == 0:
+        return arm
+
+    ucb_values = [0.0 for arm in range(n_arms)]
+    total_counts = sum(self.counts)
+    for arm in range(n_arms):
+      bonus = math.sqrt((2 * math.log(total_counts)) / float(self.counts[arm]))
+      ucb_values[arm] = self.values[arm] + bonus
+    return ind_max(ucb_values)
+
+  def update(self, chosen_arm, reward):
+    self.counts[chosen_arm] = self.counts[chosen_arm] + 1
+    n = self.counts[chosen_arm]
+
+    value = self.values[chosen_arm]
+    new_value = ((n - 1) / float(n)) * value + (1 / float(n)) * reward
+    self.values[chosen_arm] = new_value
+    return
 
 #################
 # FAKE DATASETS #
@@ -28,7 +147,8 @@ def get_data(dataset, num_points, dim, noise_std):
         return get_mnist_data(num_points, dim, noise_std)
     elif dataset.lower() in ('nonconvex_easy', 'nonconvex_medium', 'nonconvex_hard'):
         return get_nonconvex_easy_data(num_points, dim, noise_std)
-
+    elif dataset in envs:
+        return get_custom_env_data(num_points, dim, noise_std, dataset)
 
 # First logical test would be to make sure that LearnedOptimizationEnv
 # works when just use SGD as action, then test DDPG, should be easy
@@ -60,6 +180,12 @@ def get_nonconvex_easy_data(num_points, dim, noise_std):
     return generate_linear_data(num_points, dim, noise_std)
 
 
+
+def get_custom_env_data(num_points, dim, noise_std, dataset):
+    """return nxd"""
+    return []
+
+
 ########
 # LOSS #
 ########
@@ -76,6 +202,10 @@ def get_loss(dataset, theta, data):
         return get_nonconvex_medium_loss(theta, data)
     elif dataset.lower() == 'nonconvex_hard':
         return get_nonconvex_hard_loss(theta, data)
+    elif dataset in envs:
+        return get_custom_env_loss(dataset, theta, data)
+    else:
+        raise NotImplementedError
 
 
 def get_linear_loss(theta, data):
@@ -107,17 +237,25 @@ def get_nonconvex_hard_loss(theta, data):
     return np.linalg.norm(np.sin(X.dot(theta) - y)) / float(len(X))
 
 
+def get_custom_env_loss(dataset, theta, data):
+    assert len(theta) == 2
+    env = envs[dataset]
+    return env.get_loss(theta[0], theta[1])
+
+
 ############
 # GRADIENT #
 ############
 
 
 def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
-    X, Y = data[:, :-1], data[:, -1]
-
-    # select batch
-    indices = np.random.randint(len(X), size=batch_size)
-    x, y = X[indices], Y[indices]
+    if dataset not in envs.keys():
+        X, Y = data[:, :-1], data[:, -1]
+        # select batch
+        indices = np.random.randint(len(X), size=batch_size)
+        x, y = X[indices], Y[indices]
+    else:
+        x, y = None, None
 
     if dataset.lower() == 'simple':
         gradient = get_stoch_linear_gradient(theta, x, y)
@@ -129,90 +267,16 @@ def get_stoch_gradient(dataset, theta, data, batch_size, eta=1):
         gradient = get_nonconvex_medium_gradient(theta, x, y)
     elif dataset.lower() == 'nonconvex_hard':
         gradient = get_nonconvex_hard_gradient(theta, x, y)
+    elif dataset in envs:
+        gradient = get_custom_env_gradient(dataset, theta, x, y)
     else:
         raise UserWarning('Invalid dataset: {}'.format(dataset))
 
     # normalize gradient
-    gradient = -eta * gradient / float(batch_size)
+    gradient = -eta * gradient / (np.linalg.norm(gradient) * float(batch_size))
     gradient = gradient.tolist()
 
     return gradient
-
-def run_adam_optimizer(env, alpha=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-8):	
-    state = env.reset()
-    data = env.get_data()
-    episode_done = False
-
-    rewards = []
-    losses = []
-    m_t = np.zeros(len(env.theta))
-    v_t = np.zeros(len(env.theta))
-    t = 0
-    while episode_done is False:
-        t += 1
-        g_t = np.array(get_stoch_gradient(env.dataset, env.theta, env.data, env.grad_batch_size))
-        m_t = beta_1*m_t + (1-beta_1)*g_t
-        v_t = beta_2 * v_t + (1-beta_2)*g_t * g_t 
-        m_cap = m_t/(1 - (beta_1**t))
-        v_cap = v_t/(1 - (beta_2**t))
-        action = -(alpha * m_cap) / (np.sqrt(v_cap) + epsilon)
-        next_state, reward, done, loss = env.step(action)
-        episode_done = done 
-        # if t % len(data) == 0:
-        #     # print("Reward: " + str(reward))
-        #     # print("Done: " + str(done))
-        #     # print("Loss: " + str(loss))
-            
-        rewards.append(reward)
-        losses.append(loss)
-    print("\t".join(map(str, env.theta)))
-
-    print(t)
-    print(episode_done)
-
-    return t, np.sum(rewards), losses[-1]
-
-    # # Only plot results if dim = 1
-    # plot_results(env.get_theta(), data)
-    # plt.plot(losses)
-    # plt.show()
-    # plt.plot(rewards)
-    # plt.show()
-
-def run_SGD(env, step_size = 0.01):
-    state = env.reset()
-    data = env.get_data()
-    print(env.get_state_dim())
-    episode_done = False
-
-    i = 0
-    rewards = []
-    losses = []
-    while episode_done is False:
-        action = linear_gradient(env.get_theta(), step_size, data[np.random.randint(len(data))])
-        next_state, reward, done, loss = env.step(action)
-        episode_done = done
-
-        if i % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
-            # print("losses: ")
-            # print(env.losses.get_list())
-        i += 1
-        rewards.append(reward)
-        losses.append(loss)
-
-    print(i)
-    print(episode_done)
-    return i, np.sum(rewards), losses[-1]
-
-    # Only plot results if dim = 1
-    # plot_results(env.get_theta(), data)
-    # plt.plot(losses)
-    # plt.show()
-    # plt.plot(rewards)
-    # plt.show()
 
 def get_stoch_linear_gradient(theta, x, y):
     return 2 * x.T.dot(x.dot(theta) - y)
@@ -230,7 +294,14 @@ def get_nonconvex_medium_gradient(theta, x, y):
 
 
 def get_nonconvex_hard_gradient(theta, x, y):
-    pass
+    X = data[:, :-1]
+    Y = data[:, -1]
+
+
+def get_custom_env_gradient(dataset, theta, x, y):
+    assert len(theta) == 2
+    env = envs[dataset]
+    return env.get_gradient(theta[0], theta[1])
 
 
 # Some other gradients?
@@ -250,6 +321,14 @@ def linear_gradient(theta, eta, data_i):
     return -eta * (grad/np.linalg.norm(grad))
 
 
+# For SGD with mom
+def linear_gradient_mom(theta, eta, data_i):
+    X_i = data_i[:-1]
+    y_i = data_i[-1]
+    grad = (np.dot(X_i, theta) - y_i) * X_i
+    return eta * grad
+
+
 # Run SGD Optimization
 def optimize_linear_SGD(data, eta, loss_thresh, max_epochs):
     theta = np.random.random(len(data[0]) - 1)
@@ -266,7 +345,230 @@ def optimize_linear_SGD(data, eta, loss_thresh, max_epochs):
         epochs += 1
     return [theta, epochs, loss]
 
+#############
+# BASELINES #
+#############
 
+def run_rand_sample_action(env, step_size_choices):
+    state = env.reset()
+    data = env.get_data()
+    # print(env.get_state_dim())
+    episode_done = False
+
+    i = 0
+    rewards = []
+    losses = []
+
+    while episode_done is False:
+        step_size_decision = np.random.choice(step_size_choices)
+        action = np.array(get_stoch_gradient(env.dataset, env.get_theta(), data, batch_size=1, eta=step_size_decision))
+        # action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % (len(data) or 100) == 0:
+            print("Reward: " + str(reward), end="\r")
+            print("Done: " + str(done), end="\r")
+            print("Loss: " + str(loss), end="\r")
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+    print("\t".join(map(str, env.theta)))
+
+    return np.array([i, np.sum(rewards), losses[-1]])
+
+def run_SGD(env, step_size):
+    state = env.reset()
+    data = env.get_data()
+    # print(env.get_state_dim())
+    episode_done = False
+
+    i = 0
+    rewards = []
+    losses = []
+    while episode_done is False:
+        action = np.array(get_stoch_gradient(env.dataset, env.get_theta(), data, batch_size=1, eta=step_size))
+        # action = linear_gradient(env.get_theta(), step_size, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % (len(data) or 100) == 0:
+            print("Reward: " + str(reward), end="\r")
+            print("Done: " + str(done), end="\r")
+            print("Loss: " + str(loss), end="\r")
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    return np.array([i, np.sum(rewards), losses[-1]])
+
+    # Only plot results if dim = 1
+    # plot_results(env.get_theta(), data)
+    # plt.plot(losses)
+    # plt.show()
+    # plt.plot(rewards)
+    # plt.show()
+
+def run_SGD_mom(env, eta, gamma):
+    state = env.reset()
+    data = env.get_data()
+    # print(env.get_state_dim())
+    episode_done = False
+
+    v = 0
+    i = 0
+    rewards = []
+    losses = []
+    while episode_done is False:
+        scaled_grad = -np.array(get_stoch_gradient(env.dataset, env.get_theta(), data, batch_size=1, eta=eta))
+        # scaled_grad = linear_gradient_mom(env.get_theta(), eta, data[np.random.randint(len(data))])
+        v = gamma * v + scaled_grad
+        action = -v
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % (len(data) or 100) == 0:
+            print("Reward: " + str(reward))
+            print("Done: " + str(done))
+            print("Loss: " + str(loss))
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    return np.array([i, np.sum(rewards), losses[-1]])
+
+    # Only plot results if dim = 1
+    # plot_results(env.get_theta(), data)
+    # plt.plot(losses)
+    # plt.show()
+    # plt.plot(rewards)
+    # plt.show()
+
+
+def run_FTL(env, step_size_choices):
+    rewards_choices_total = np.zeros(len(step_size_choices))
+    state = env.reset()
+    data = env.get_data()
+    episode_done = False
+
+    i = 0
+    rewards = []
+    losses = []
+
+    while episode_done is False:
+        reward_choices = env.get_rewards(step_size_choices)
+        rewards_choices_total += reward_choices
+        if i > 50:
+            step_size_decision = step_size_choices[np.argmax(rewards_choices_total)]
+        else:
+            step_size_decision = np.random.choice(step_size_choices)
+        action = np.array(get_stoch_gradient(env.dataset, env.get_theta(), data, batch_size=1, eta=step_size_decision))
+        # action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % (len(data) or 100) == 0:
+            print("Reward: " + str(reward), end="\r")
+            print("Done: " + str(done), end="\r")
+            print("Loss: " + str(loss), end="\r")
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    os.makedirs('./tmp-ftl/', exist_ok=True)
+    np.save('./tmp-ftl/theta.npy', env.get_theta())
+    return np.array([i, np.sum(rewards), losses[-1]])
+
+def m_weights(reward_choices, eta):
+    weights = np.exp(eta*reward_choices)
+    return weights/sum(weights)
+
+def m_weights_sample(probs, step_size_choices):
+    return step_size_choices[np.random.choice(len(probs), p=probs)]
+
+def run_multiplicative_weights(env, step_size_choices):
+    rewards_choices_total = np.zeros(len(step_size_choices))
+    state = env.reset()
+    data = env.get_data()
+    # print(env.get_state_dim())
+    episode_done = False
+
+    i = 0
+    rewards = []
+    losses = []
+    T = 10
+    eta = np.sqrt(np.log(len(step_size_choices)))/T
+
+    while episode_done is False:
+        if i >= T:
+            T = T*2
+            eta = np.sqrt(np.log(len(step_size_choices)))/T
+
+        probs = m_weights(rewards_choices_total, eta)
+        reward_choices = env.get_rewards(step_size_choices)
+        rewards_choices_total += reward_choices
+        step_size_decision = m_weights_sample(probs, step_size_choices)
+        action = np.array(get_stoch_gradient(env.dataset, env.get_theta(), data, batch_size=1, eta=step_size_decision))
+        # action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        episode_done = done
+
+        if i % (len(data) or 100) == 0:
+            print("Reward: " + str(reward), end="\r")
+            print("Done: " + str(done), end="\r")
+            print("Loss: " + str(loss), end="\r")
+            # print("losses: ")
+            # print(env.losses.get_list())
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    os.makedirs('./tmp-mw/', exist_ok=True)
+    np.save('./tmp-mw/theta.npy', env.get_theta())
+    return np.array([i, np.sum(rewards), losses[-1]])
+
+def ind_max(x):
+  m = max(x)
+  return x.index(m)
+
+def run_UCB(env, step_size_choices):
+    state = env.reset()
+    data = env.get_data()
+    episode_done = False
+    agent = UCB1(len(step_size_choices))
+
+    i = 0
+    rewards = []
+    losses = []
+    while episode_done is False:
+        step_size_decision = agent.select_arm()
+        temp_r = env.get_rewards(step_size_choices)[step_size_decision]
+        action = np.array(get_stoch_gradient(env.dataset, env.get_theta(), data, batch_size=1, eta=step_size_decision))
+        # action = linear_gradient(env.get_theta(), step_size_decision, data[np.random.randint(len(data))])
+        next_state, reward, done, loss = env.step(action)
+        agent.update(step_size_decision, reward)
+        episode_done = done
+
+        if i % (len(data) or 100) == 0:
+            print("Reward: " + str(reward), end="\r")
+            print("Done: " + str(done), end="\r")
+            print("Loss: " + str(loss), end="\r")
+        i += 1
+        rewards.append(reward)
+        losses.append(loss)
+
+    os.makedirs('./tmp-ucb/', exist_ok=True)
+    np.save('./tmp-ucb/values.npy', agent.values)
+    np.save('./tmp-ucb/counts.npy', agent.counts)
+    return np.array([i, np.sum(rewards), losses[-1]])
 #############
 # UTILITIES #
 #############
@@ -309,6 +611,9 @@ class Buffer(object):
 class LearnedOptimizationEnv:
     def __init__(self, num_points, grad_batch_size, dim, loss_thresh, max_steps, losses_hist_length,
                  grads_hist_length, skip=0, dataset='simple'):
+        if dataset.lower() in envs.keys():
+            assert dim == 1
+
         # Get data + initialize optimization parameters
         self.dataset = dataset
         self.dim = dim
@@ -331,7 +636,7 @@ class LearnedOptimizationEnv:
             self.losses.get_list() + [grad_elem for grad in self.gradients.get_list() for grad_elem in grad])
         # self.state = np.array(self.losses.get_list())
 
-    def reset(self):
+    def reset(self, dataset=None):
         """Reset environment and get initial state"""
         self.p_coor = 1
         self.theta = np.random.random(self.dim + 1)
@@ -341,8 +646,28 @@ class LearnedOptimizationEnv:
         self.state = np.array(
             self.losses.get_list() + [grad_elem for grad in self.gradients.get_list() for grad_elem in grad])
         self.num_steps = 0
+        if dataset is not None:
+            self.dataset = dataset
         # self.state = np.array(self.losses.get_list())
         return self.state
+
+    # Reward 1 for the best choice, reward 0 for everything else
+    def get_rewards(self, actions):
+        rewards = np.zeros(len(actions))
+        max_reward_ind = 0
+        max_reward = -np.inf
+        data = self.get_data()
+        for i in range(len(actions)):
+            temp_theta = self.theta + get_stoch_gradient(self.dataset, self.get_theta(), data, batch_size=1, eta=1)
+            # temp_theta = self.theta + linear_gradient(self.get_theta(), actions[i], data[np.random.randint(len(data))])
+            losses = self.losses.get_list()
+            r = np.mean(losses) - get_loss(self.dataset, temp_theta, self.data)
+            if r > max_reward:
+                max_reward_ind = i
+                max_reward = r
+
+        rewards[max_reward_ind] = 1
+        return rewards
 
     def step(self, action):
         """
@@ -361,6 +686,7 @@ class LearnedOptimizationEnv:
 
         An action is a vector of the same dimension as theta
         """
+        orig_theta = self.theta
         # --- Update theta based on action ---
         self.theta = self.theta + action
         # --- Determine whether the episode is done ---
@@ -409,6 +735,17 @@ if __name__ == "__main__":
     num_episodes = 1000
     for i in range(num_episodes):
         run_adam_optimizer(env)
+    
+    print("Random Learning Rate")
+    run_rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    print("Multiplicative Weights")
+    run_multiplicative_weights(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    print("UCB")
+    run_UCB(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    print("FTL")
+    run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
+    print("SGD")
+    run_SGD_mom(env, 0.01, 0.7)
 
     # episode_rewards = []
     # episode_losses = []
@@ -425,5 +762,5 @@ if __name__ == "__main__":
     # 	episode_steps_list.append(num_steps)
 
     # 	if i % 100 == 0:
-	   #  	pickle.dump( {'episode_steps' : episode_steps_list, 'episode_rewards' : episode_rewards, 
+	   #  	pickle.dump( {'episode_steps' : episode_steps_list, 'episode_rewards' : episode_rewards,
 	   #  		'episode_losses' : episode_losses}, open( "SGD_stats.p", "wb" ) )
