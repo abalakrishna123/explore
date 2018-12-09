@@ -158,12 +158,14 @@ def run_adam_optimizer(env, alpha=0.01, beta_1=0.9, beta_2=0.999, epsilon=1e-8):
         action = -(alpha * m_cap) / (np.sqrt(v_cap) + epsilon)
         next_state, reward, done, loss = env.step(action)
         episode_done = done 
-        if t % len(data) == 0:
-            print("Reward: " + str(reward))
-            print("Done: " + str(done))
-            print("Loss: " + str(loss))
+        # if t % len(data) == 0:
+        #     # print("Reward: " + str(reward))
+        #     # print("Done: " + str(done))
+        #     # print("Loss: " + str(loss))
+            
         rewards.append(reward)
         losses.append(loss)
+    print("\t".join(map(str, env.theta)))
 
     print(t)
     print(episode_done)
@@ -403,8 +405,10 @@ class LearnedOptimizationEnv:
 
 # Here we can compare SGD, Adam against learned optimizer
 if __name__ == "__main__":
-    env = LearnedOptimizationEnv(1000, 50, 10, 1, 20000, 32, 32, 0, 'nonconvex_medium')
-    run_adam_optimizer(env)
+    env = LearnedOptimizationEnv(1000, 50, 2, 1, 20000, 32, 32, 0, 'nonconvex_medium')
+    num_episodes = 1000
+    for i in range(num_episodes):
+        run_adam_optimizer(env)
 
     # episode_rewards = []
     # episode_losses = []

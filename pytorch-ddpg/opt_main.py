@@ -127,7 +127,8 @@ def train(num_iterations, agent, env, evaluate, validate_steps, output, max_epis
                 plot(len(episode_steps_list), episode_steps_list, 'Episode', 'Total Steps', generate_hook('steps'))
 
             if debug:
-                prLightPurple('#{}: len:{} episode_reward:{} episode_loss:{} steps:{} theta:{}'.format(
+                prLightPurple('({}) #{}: len:{} episode_reward:{} episode_loss:{} steps:{} theta:{}'.format(
+                    "AGENT" if step > args.warmup else "WARMUP",
                     episode,
                     episode_steps,
                     episode_reward / float(episode_steps),
@@ -213,7 +214,7 @@ if __name__ == "__main__":
     prYellow("CUDA enabled?: {}".format(cuda_on))
 
     # env = NormalizedEnv(gym.make(args.env))
-    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 10, 1, 20000, args.nlosses, args.ngradients,
+    env = LearnedOptimizationEnv(1000, args.grad_batch_size, 2, 1, 20000, args.nlosses, args.ngradients,
         skip=args.skip, dataset=args.dataset)
 
 
