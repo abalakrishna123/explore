@@ -141,7 +141,8 @@ def train(switch, switch_freq, dataset_options, num_iterations, agent, env, eval
                 print(episode_steps_list)
 
             if debug:
-                prLightPurple('#{}: len:{} episode_reward:{} episode_loss:{} steps:{} theta:{}'.format(
+                prLightPurple('({}) #{}: len:{} episode_reward:{} episode_loss:{} steps:{} theta:{}'.format(
+                    "AGENT" if step > args.warmup else "WARMUP",
                     episode,
                     episode_steps,
                     episode_reward / float(episode_steps),
@@ -218,7 +219,7 @@ if __name__ == "__main__":
     parser.add_argument('--actor_clone', default=0, type=int) # whether to behavior clone warmup rollouts, 0 is false (default), 1 is true
     parser.add_argument('--update_policy_every_step', default=1, type=int) # whether to update policy every step, 1 is true (default), 0 is false
     parser.add_argument('--lossthresh', default=0.5, type=float, help='')
-    parser.add_argument('--num_baseline_trials', default=20, type=float, help = 'Number of rollouts for each baseline')
+    parser.add_argument('--num_baseline_trials', default=20, type=int, help = 'Number of rollouts for each baseline')
     # parser.add_argument('--single_lr', action='store_true', help='if true, use a single learning rate for all dimensions')
     args = parser.parse_args()
     args.output = get_output_folder(args.output, args.env)
@@ -259,11 +260,11 @@ if __name__ == "__main__":
              visualize=False, debug=args.debug)
 
     elif args.mode == 'custom':
-        baseline_results = {'random' : np.array([0., 0., 0.]), 
-        'multiplicative_weights' : np.array([0., 0., 0.]), 
-        'UCB' : np.array([0., 0., 0.]), 
-        'FTL' : np.array([0., 0., 0.]), 
-        'SGD' : np.array([0., 0., 0.]), 
+        baseline_results = {'random' : np.array([0., 0., 0.]),
+        'multiplicative_weights' : np.array([0., 0., 0.]),
+        'UCB' : np.array([0., 0., 0.]),
+        'FTL' : np.array([0., 0., 0.]),
+        'SGD' : np.array([0., 0., 0.]),
         'momentum' : np.array([0., 0., 0.])}
 
         for i in range(args.num_baseline_trials):
@@ -274,7 +275,7 @@ if __name__ == "__main__":
 	        baseline_results['FTL'] += run_FTL(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))/float(args.num_baseline_trials)
 	        baseline_results['SGD'] += run_SGD(env, 0.01)/float(args.num_baseline_trials)
 	        baseline_results['momentum'] += run_SGD_mom(env, 0.01, 0.7)/float(args.num_baseline_trials)
-        
+
         print(baseline_results)
         pickle.dump(baseline_results, open("baseline_results.p", "wb"))
     else:
