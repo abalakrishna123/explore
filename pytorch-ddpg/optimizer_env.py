@@ -13,7 +13,6 @@ import autograd.numpy as np
 from autograd import elementwise_grad
 import matplotlib.pyplot as plt
 from collections import deque
-from envs.rosenbrock import Rosenbrock
 import torch
 import pickle
 import math
@@ -100,12 +99,53 @@ class Ackley(Optimization):
             yrange=(-5, 5, 0.2)
         )
 
+
+class OptimizationNDimensional:
+
+    def __init__(self, f, optimum, xirange, n):
+        """
+        :param xirange: (start, end, step)
+        :param n: n dimensional problem
+        """
+        self.f  = f
+        self.fdxis = [elementwise_grad(self.f, argnum=i) for i in range(n)]
+
+        self.min_xis = np.array(optimum)  # global minimum
+        self.min_z = self.f(*self.min_xis)
+
+    def get_loss(self, *xis):
+        return (self.f(*xis) - self.min_z) ** 2
+
+    def get_gradient(self, *xis):
+        return np.array([f(*xis) for f in self.fdxis])
+
+
+class Rastrigin(OptimizationNDimensional):
+
+    def __init__(self, n=2, a=10):
+        self.n = n
+        self.a = a
+        super(Rastrigin, self).__init__(
+            f=self.f,
+            optimum=[0.] * n,
+            xirange=(-5.12, 5.12, 0.25),
+            n=n
+        )
+
+    def f(self, *xis):
+        assert len(xis) == self.n, len(xis)
+
+        X = np.array(xis)
+        return self.a * self.n + np.sum(X**2. - self.a * np.cos(2 * np.pi * X))
+
+
 envs = {
     'beale': Beale(),
     'goldstein-price': GoldsteinPrice(),
     'booth': Booth(),
     'schaffer-n2': SchafferN2(),
-    'ackley': Ackley()
+    'ackley': Ackley(),
+    'rastrigin': Rastrigin  # TODO: lulz, ugly hack
 }
 
 class UCB1():
@@ -238,9 +278,9 @@ def get_nonconvex_hard_loss(theta, data):
 
 
 def get_custom_env_loss(dataset, theta, data):
-    assert len(theta) == 2
+    # assert len(theta) == 2
     env = envs[dataset]
-    return env.get_loss(theta[0], theta[1])
+    return env.get_loss(*theta)
 
 
 ############
@@ -299,9 +339,9 @@ def get_nonconvex_hard_gradient(theta, x, y):
 
 
 def get_custom_env_gradient(dataset, theta, x, y):
-    assert len(theta) == 2
+    # assert len(theta) == 2
     env = envs[dataset]
-    return env.get_gradient(theta[0], theta[1])
+    return env.get_gradient(*theta)
 
 
 # Some other gradients?
@@ -612,7 +652,10 @@ class LearnedOptimizationEnv:
     def __init__(self, num_points, grad_batch_size, dim, loss_thresh, max_steps, losses_hist_length,
                  grads_hist_length, skip=0, dataset='simple'):
         if dataset.lower() in envs.keys():
-            assert dim == 1
+            assert dim == 1 or dataset.lower() in ('rastrigin',)
+
+        if dataset.lower() in ('rastrigin',):  # TODO: really bad hack
+            envs[dataset.lower()] = envs[dataset.lower()](n=dim + 1)
 
         # Get data + initialize optimization parameters
         self.dataset = dataset
@@ -735,7 +778,7 @@ if __name__ == "__main__":
     num_episodes = 1000
     for i in range(num_episodes):
         run_adam_optimizer(env)
-    
+
     print("Random Learning Rate")
     run_rand_sample_action(env, np.array([0.001, 0.01, 0.1, 1, 10, 100]))
     print("Multiplicative Weights")
